@@ -1,65 +1,91 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-[#070A12] text-white overflow-hidden">
+      {/* Background Glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute w-[500px] h-[500px] bg-pink-500/20 blur-[120px] -top-40 -left-40" />
+        <div className="absolute w-[500px] h-[500px] bg-cyan-500/20 blur-[120px] -bottom-40 -right-40" />
+      </div>
+
+      {/* HERO */}
+      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-24 pb-20">
+        {/* Badge */}
+        <div className="px-4 py-1 rounded-full border border-white/10 bg-white/5 text-sm text-cyan-300 mb-6">
+          ⚡ AI Powered Job Tracker
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Title */}
+        <h1 className="text-4xl md:text-6xl font-bold leading-tight">
+          Track Jobs Smarter <br />
+          <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+            Get Hired Faster
+          </span>
+        </h1>
+
+        {/* Subtitle */}
+        <p className="mt-5 text-white/60 max-w-xl text-sm md:text-base">
+          One dashboard for all your job applications. AI helps you match,
+          track, and improve your chances instantly.
+        </p>
+
+        {/* Buttons */}
+        <div className="flex gap-3 mt-8">
+          <Link
+            href="/auth/register"
+            className="px-6 py-3 rounded-xl font-semibold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 hover:opacity-90 transition"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            Get Started
+          </Link>
+
+          <Link
+            href="/login"
+            className="px-6 py-3 rounded-xl border border-white/15 hover:border-cyan-400/50 transition"
+          >
+            Login
+          </Link>
+        </div>
+      </section>
+
+      {/* FEATURES */}
+      <section className="max-w-5xl mx-auto px-6 pb-20 grid md:grid-cols-3 gap-5">
+        {[
+          {
+            title: "AI Resume Match",
+            desc: "Instant AI scoring for job fit.",
+            color: "from-pink-500 to-purple-500",
+          },
+          {
+            title: "Smart Tracking",
+            desc: "Track all applications in one place.",
+            color: "from-cyan-500 to-blue-500",
+          },
+          {
+            title: "Job Insights",
+            desc: "Analytics to improve success rate.",
+            color: "from-purple-500 to-indigo-500",
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 transition"
+          >
+            <div
+              className={`w-10 h-10 rounded-lg mb-3 bg-gradient-to-r ${item.color}`}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <h3 className="font-semibold text-lg">{item.title}</h3>
+            <p className="text-sm text-white/60 mt-1">{item.desc}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* FOOTER */}
+      <footer className="text-center text-white/40 text-sm pb-10">
+        © {new Date().getFullYear()} ApplyAI — Built for developers
+      </footer>
+    </main>
   );
 }
