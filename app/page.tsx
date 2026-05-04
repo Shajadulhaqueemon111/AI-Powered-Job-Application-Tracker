@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Navbar from "./components/Navbar";
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#070A12] text-white overflow-hidden">
+      <Navbar />
       {/* Background Glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute w-[500px] h-[500px] bg-pink-500/20 blur-[120px] -top-40 -left-40" />
