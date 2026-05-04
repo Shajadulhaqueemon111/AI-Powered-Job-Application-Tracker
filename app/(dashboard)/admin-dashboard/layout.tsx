@@ -1,9 +1,15 @@
-"use client";
-
+import { Metadata } from "next";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
+
+export const metadata: Metadata = {
+  title: "Admin Dashboard",
+  description: "Admin panel for managing the application",
+  keywords: ["admin", "dashboard", "management"],
+};
 
 export default function AdminLayout({
   children,
@@ -28,7 +34,10 @@ export default function AdminLayout({
         >
           <div className="flex w-full min-h-screen bg-background text-foreground">
             <AppSidebar />
-            <SidebarInset className="flex-1">{children}</SidebarInset>
+            <SidebarInset className="flex-1">
+              <SiteHeader />
+              {children}
+            </SidebarInset>
           </div>
         </SidebarProvider>
       </TooltipProvider>

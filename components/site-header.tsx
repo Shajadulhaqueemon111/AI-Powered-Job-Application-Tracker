@@ -4,12 +4,13 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
+import { AvatarDropdown } from "@/app/(dashboard)/admin-dashboard/user-avatar/page";
 
 export function SiteHeader() {
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b bg-background ">
       <div className="flex h-(--header-height) items-center gap-2 px-4 lg:px-6">
         {/* Left */}
         <div className="flex items-center gap-2">
@@ -32,6 +33,10 @@ export function SiteHeader() {
               <Moon className="h-5 w-5" />
             )}
           </button>
+        </div>
+
+        <div>
+          <AvatarDropdown />
         </div>
       </div>
     </header>

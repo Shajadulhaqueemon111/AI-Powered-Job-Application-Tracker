@@ -162,7 +162,9 @@ export function ChartAreaInteractive() {
   return (
     <Card className="bg-background dark:bg-black dark:text-white border border-gray-200 shadow-md rounded-2xl">
       <CardHeader>
-        <CardTitle className="text-gray-900">Total Visitors</CardTitle>
+        <CardTitle className="text-gray-900 dark:text-white">
+          Total Visitors
+        </CardTitle>
         <CardDescription className="text-gray-500">
           Last 3 months analytics
         </CardDescription>
@@ -185,7 +187,7 @@ export function ChartAreaInteractive() {
               <SelectValue />
             </SelectTrigger>
 
-            <SelectContent className="bg-white text-gray-900 border-gray-200">
+            <SelectContent className="bg-background  dark:text-white border-gray-200">
               <SelectItem value="90d">3 Months</SelectItem>
               <SelectItem value="30d">30 Days</SelectItem>
               <SelectItem value="7d">7 Days</SelectItem>
