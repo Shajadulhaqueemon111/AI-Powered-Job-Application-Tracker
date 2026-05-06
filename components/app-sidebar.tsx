@@ -66,7 +66,7 @@ const data = {
     },
     {
       title: "AI Usage",
-      url: "/admin-dashboard/ai-usage",
+      url: "/admin-dashboard/ai-usages",
       icon: <DatabaseIcon />,
     },
   ],
