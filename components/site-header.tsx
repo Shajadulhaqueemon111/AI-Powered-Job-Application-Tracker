@@ -5,6 +5,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { AvatarDropdown } from "@/app/(dashboard)/admin-dashboard/user-avatar/page";
+import NotificationPage from "@/app/(dashboard)/admin-dashboard/notification/page";
 
 export function SiteHeader() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -34,7 +35,9 @@ export function SiteHeader() {
             )}
           </button>
         </div>
-
+        <div>
+          <NotificationPage />
+        </div>
         <div>
           <AvatarDropdown />
         </div>

@@ -87,12 +87,12 @@ const data = {
   documents: [
     {
       name: "Reports",
-      url: "/admin-dashboard/analytics",
+      url: "/admin-dashboard/report-analysis",
       icon: <FileChartColumnIcon />,
     },
     {
       name: "System Logs",
-      url: "/admin-dashboard/activity-logs",
+      url: "/admin-dashboard/logs",
       icon: <FileIcon />,
     },
   ],

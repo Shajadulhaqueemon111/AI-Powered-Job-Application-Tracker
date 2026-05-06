@@ -1,3 +1,5 @@
+"use client";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +36,7 @@ export function AvatarDropdown() {
   "
       >
         <DropdownMenuGroup>
-          <Link href="/admin-dashboard/profile">
+          <Link href="/admin-dashboard/settings">
             <DropdownMenuItem className="cursor-pointer hover:bg-muted focus:bg-muted">
               Profile
             </DropdownMenuItem>
