@@ -11,14 +11,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-
+import avatarImage from "../../../../public/avatar.jpg";
 export function AvatarDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full">
           <Avatar>
-            <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
+            <AvatarImage src={avatarImage.src} alt="shadcn" />
             <AvatarFallback>CN</AvatarFallback>
           </Avatar>
         </Button>
