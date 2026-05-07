@@ -33,7 +33,7 @@ export default function AdminLayout({
           }
         >
           <div className="flex w-full min-h-screen bg-background text-foreground">
-            <AppSidebar />
+            <AppSidebar type="admin" />
             <SidebarInset className="flex-1">
               <SiteHeader />
               {children}
