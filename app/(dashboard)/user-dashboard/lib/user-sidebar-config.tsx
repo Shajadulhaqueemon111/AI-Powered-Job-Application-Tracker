@@ -29,11 +29,20 @@ export const userSidebar = {
       url: "/user-dashboard/ai-matcher",
       icon: <SparklesIcon />,
     },
-    { title: "Analytics", url: "/dashboard/analytics", icon: <ChartBarIcon /> },
+    {
+      title: "Analytics",
+      url: "/user-dashboard/analytics",
+      icon: <ChartBarIcon />,
+    },
     {
       title: "Notifications",
       url: "/user-dashboard/notifications",
       icon: <BellIcon />,
+    },
+    {
+      title: "chat",
+      url: "/user-dashboard/chat",
+      icon: <ChartBarIcon />,
     },
   ],
   navSecondary: [

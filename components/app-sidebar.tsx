@@ -31,6 +31,7 @@ export function AppSidebar({
             email: "user@gmail.com",
             avatar: "/avatars/user.jpg", // ✅ ADD THIS
           }}
+          type={type}
         />
       </SidebarFooter>
     </Sidebar>

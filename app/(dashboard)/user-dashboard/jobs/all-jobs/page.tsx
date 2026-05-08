@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
 import {
   Drawer,
   DrawerClose,
@@ -266,7 +267,7 @@ export default function AllJobsWithDrawer() {
   const [activeFilter, setActiveFilter] = React.useState("All Jobs");
 
   const [page, setPage] = React.useState(1);
-
+  const [phone, setPhone] = React.useState("");
   const perPage = 6;
 
   // ================= FILTER =================
@@ -622,7 +623,31 @@ export default function AllJobsWithDrawer() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Phone Number</label>
 
-                  <Input placeholder="+1 234 567 890" />
+                  <PhoneInput
+                    country={"bd"}
+                    value={phone}
+                    onChange={(value) => setPhone(value)}
+                    enableSearch
+                    searchPlaceholder="Search country..."
+                    placeholder="Enter phone number"
+                    containerClass="w-full"
+                    inputClass="!w-full !h-12 !rounded-xl 
+  !bg-white dark:!bg-zinc-900 
+  !text-black dark:!text-white
+  !border !border-zinc-300 dark:!border-zinc-700
+  focus:!ring-2 focus:!ring-emerald-500
+  !pl-14"
+                    buttonClass="!bg-white dark:!bg-zinc-900
+  !border !border-zinc-300 dark:!border-zinc-700
+  !rounded-l-xl hover:!bg-zinc-100 dark:hover:!bg-zinc-800"
+                    dropdownClass="!bg-white dark:!bg-zinc-900 
+  !text-black dark:!text-white
+  !border !border-zinc-300 dark:!border-zinc-700"
+                    searchClass="!bg-zinc-100 dark:!bg-zinc-800
+  !text-black dark:!text-white
+  !border !border-zinc-300 dark:!border-zinc-700
+  !rounded-lg"
+                  />
                 </div>
 
                 {/* LINKEDIN */}

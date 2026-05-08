@@ -28,16 +28,23 @@ import {
   LogOutIcon,
 } from "lucide-react";
 
-export function NavUser({
-  user,
-}: {
+type NavUserProps = {
   user: {
     name: string;
     email: string;
     avatar: string;
   };
-}) {
+  type: "admin" | "user";
+};
+
+export function NavUser({ user, type }: NavUserProps) {
   const { isMobile } = useSidebar();
+
+  // ✅ SAFE ROLE (no default admin bug)
+  const role = type ?? "user";
+
+  // ✅ dynamic base route
+  const base = role === "admin" ? "/admin-dashboard" : "/user-dashboard";
 
   return (
     <SidebarMenu>
@@ -50,11 +57,12 @@ export function NavUser({
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarFallback>CN</AvatarFallback>
               </Avatar>
 
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
+
                 <span className="truncate text-xs text-muted-foreground">
                   {user.email}
                 </span>
@@ -70,7 +78,7 @@ export function NavUser({
             align="end"
             sideOffset={6}
           >
-            {/* Profile Header */}
+            {/* PROFILE HEADER */}
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-2 py-2">
                 <Avatar className="h-8 w-8 rounded-lg">
@@ -80,6 +88,7 @@ export function NavUser({
 
                 <div className="flex flex-col text-left">
                   <span className="text-sm font-medium">{user.name}</span>
+
                   <span className="text-xs text-muted-foreground">
                     {user.email}
                   </span>
@@ -89,11 +98,11 @@ export function NavUser({
 
             <DropdownMenuSeparator />
 
-            {/* Navigation */}
+            {/* MENU */}
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
                 <Link
-                  href="/admin-dashboard/settings"
+                  href={`${base}/settings`}
                   className="flex items-center gap-2 w-full"
                 >
                   <CircleUserRoundIcon className="size-4" />
@@ -103,7 +112,7 @@ export function NavUser({
 
               <DropdownMenuItem asChild>
                 <Link
-                  href="/admin-dashboard/billing"
+                  href={`${base}/billing`}
                   className="flex items-center gap-2 w-full"
                 >
                   <CreditCardIcon className="size-4" />
@@ -113,7 +122,7 @@ export function NavUser({
 
               <DropdownMenuItem asChild>
                 <Link
-                  href="/admin-dashboard/settings"
+                  href={`${base}/notifications`}
                   className="flex items-center gap-2 w-full"
                 >
                   <BellIcon className="size-4" />
@@ -124,13 +133,10 @@ export function NavUser({
 
             <DropdownMenuSeparator />
 
-            {/* Logout Action */}
+            {/* LOGOUT */}
             <DropdownMenuItem
               className="flex items-center gap-2 text-red-500 cursor-pointer"
-              onClick={() => {
-                // এখানে তোমার logout logic (NextAuth / custom auth)
-                console.log("logout");
-              }}
+              onClick={() => console.log("logout")}
             >
               <LogOutIcon className="size-4" />
               Log out
