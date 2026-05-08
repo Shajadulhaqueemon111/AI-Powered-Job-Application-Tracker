@@ -6,7 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import NotificationPage from "@/app/(dashboard)/admin-dashboard/notification/page";
-import { AvatarDropdown } from "@/app/components/user-avatar/page";
+import AvatarDropdown from "@/app/components/user-avatar";
 
 export function SiteHeader() {
   const { theme, setTheme } = useTheme();

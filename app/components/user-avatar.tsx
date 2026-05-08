@@ -17,13 +17,13 @@ import { Button } from "@/components/ui/button";
 
 import { User, Bell, CreditCard, LogOut, Settings } from "lucide-react";
 
-import avatarImage from "../../../public/avatar.jpg";
+import avatarImage from "../.././public/avatar.jpg";
 
 type AvatarDropdownProps = {
   type?: "admin" | "user";
 };
 
-export function AvatarDropdown({ type = "user" }: AvatarDropdownProps) {
+export default function AvatarDropdown({ type = "user" }: AvatarDropdownProps) {
   /* ---------------- ROUTES ---------------- */
 
   const baseRoute = type === "admin" ? "/admin-dashboard" : "/user-dashboard";
