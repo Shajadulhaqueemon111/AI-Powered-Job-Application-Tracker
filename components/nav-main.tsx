@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link"; // ✅ ADD THIS
+import Link from "next/link";
+import { usePathname } from "next/navigation"; // ✅ ADD THIS
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,8 @@ export function NavMain({
     icon?: React.ReactNode;
   }[];
 }) {
+  const pathname = usePathname(); // ✅ current route
+
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -46,19 +49,29 @@ export function NavMain({
           </SidebarMenuItem>
         </SidebarMenu>
 
-        {/* ✅ MAIN NAV FIX */}
+        {/* MAIN NAV */}
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              {/* 🔥 IMPORTANT CHANGE */}
-              <SidebarMenuButton asChild tooltip={item.title}>
-                <Link href={item.url}>
-                  {item.icon}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            const isActive = pathname === item.url;
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild tooltip={item.title}>
+                  <Link
+                    href={item.url}
+                    className={
+                      isActive
+                        ? "bg-primary text-primary-foreground rounded-md"
+                        : ""
+                    }
+                  >
+                    {item.icon}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

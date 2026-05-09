@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 
-export default function GlobalNotFound() {
+export default function AdminNotFound() {
   const starsRef = useRef<HTMLDivElement>(null);
   const dotsRef = useRef<HTMLDivElement>(null);
 
@@ -259,7 +259,7 @@ export default function GlobalNotFound() {
           </p>
 
           <Link
-            href="/"
+            href="/admin-dashboard"
             className="nf-btn"
             style={{
               display: "inline-flex",
@@ -277,7 +277,7 @@ export default function GlobalNotFound() {
               overflow: "hidden",
             }}
           >
-            <span className="nf-arrow">&#8592;</span> Return Home
+            <span className="nf-arrow">&#8592;</span> Return Dashboard Home
           </Link>
         </div>
       </div>

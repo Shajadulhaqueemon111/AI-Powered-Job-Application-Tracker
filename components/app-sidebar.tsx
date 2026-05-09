@@ -12,7 +12,7 @@ import { adminSidebar } from "@/app/(dashboard)/admin-dashboard/lib/admin-sideba
 import { userSidebar } from "@/app/(dashboard)/user-dashboard/lib/user-sidebar-config";
 
 export function AppSidebar({
-  type = "admin", // 👈 ADD THIS
+  type = "admin",
   ...props
 }: React.ComponentProps<typeof Sidebar> & { type?: "admin" | "user" }) {
   const data = type === "admin" ? adminSidebar : userSidebar;
