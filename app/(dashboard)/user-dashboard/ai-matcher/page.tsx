@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import AIResumeMatcherPage from "./matcher/page";
+import AIResumeMatcherPage from "./matcher/matcher";
 
 export const metadata: Metadata = {
   title: "AI Resume Matcher",

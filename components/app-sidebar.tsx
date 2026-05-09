@@ -29,7 +29,7 @@ export function AppSidebar({
           user={{
             name: "User",
             email: "user@gmail.com",
-            avatar: "/avatars/user.jpg", // ✅ ADD THIS
+            avatar: "/avatar.jpg", // ✅ ADD THIS
           }}
           type={type}
         />

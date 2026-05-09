@@ -20,16 +20,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html
       lang="en"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="font-sora bg-bg text-txt min-h-screen">
+      <body
+        suppressHydrationWarning
+        className="font-sora bg-bg text-txt min-h-screen"
+      >
         <TooltipProvider>
           <main>{children}</main>
         </TooltipProvider>

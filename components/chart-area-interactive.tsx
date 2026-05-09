@@ -183,8 +183,11 @@ export function ChartAreaInteractive() {
           </ToggleGroup>
 
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-40 @[767px]/card:hidden bg-white text-gray-900 border-gray-300">
-              <SelectValue />
+            <SelectTrigger
+              aria-label="Select analytics time range"
+              className="w-40 @[767px]/card:hidden dark:text-white text-gray-900 border-gray-300"
+            >
+              <SelectValue placeholder="Select range" />
             </SelectTrigger>
 
             <SelectContent className="bg-background  dark:text-white border-gray-200">

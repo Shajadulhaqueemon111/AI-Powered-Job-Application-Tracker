@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import ApplicationsPage from "./new/page";
+import ApplicationsPage from "./new/new-application";
 
 export const metadata: Metadata = {
   title: "My Applications - Job Tracker",

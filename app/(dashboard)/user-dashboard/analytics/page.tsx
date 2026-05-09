@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MyCareerAnalyticsPage from "./all-analytics/page";
+import MyCareerAnalyticsPage from "./all-analytics/allAnalytics";
 
 export const metadata: Metadata = {
   title: "Analytics Dashboard | AI Resume System",
