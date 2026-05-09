@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import AllJobsClient from "./all-jobs/page";
+import AllJobsClient from "./all-jobs/all-jobs";
 
 export const metadata: Metadata = {
   title: "Find Jobs - AI Job Tracker",
