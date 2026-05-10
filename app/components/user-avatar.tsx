@@ -18,16 +18,31 @@ import { Button } from "@/components/ui/button";
 import { User, Bell, CreditCard, LogOut, Settings } from "lucide-react";
 
 import avatarImage from "../.././public/avatar.jpg";
+import { useRouter } from "next/navigation";
 
 type AvatarDropdownProps = {
   type?: "admin" | "user";
+  user?: {
+    name: string;
+    email: string;
+    avatar: string;
+  };
 };
 
-export default function AvatarDropdown({ type = "user" }: AvatarDropdownProps) {
+export default function AvatarDropdown({ type = "user", user }: AvatarDropdownProps) {
   /* ---------------- ROUTES ---------------- */
 
   const baseRoute = type === "admin" ? "/admin-dashboard" : "/user-dashboard";
+const router = useRouter();
 
+const handleLogout = () => {
+  // remove token cookie
+  document.cookie =
+    "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+
+  // redirect
+  router.push("/login");
+};
   return (
     <DropdownMenu>
       {/* TRIGGER */}
@@ -44,7 +59,7 @@ export default function AvatarDropdown({ type = "user" }: AvatarDropdownProps) {
           "
         >
           <Avatar className="h-10 w-10 border-2 border-primary/20">
-            <AvatarImage src={avatarImage.src} alt="User Avatar" />
+            <AvatarImage src={user?.avatar || "/avatar.jpg"} alt="User Avatar" />
 
             <AvatarFallback className="bg-primary text-primary-foreground">
               EM
@@ -69,15 +84,15 @@ export default function AvatarDropdown({ type = "user" }: AvatarDropdownProps) {
         {/* USER INFO */}
         <div className="flex items-center gap-3 px-3 py-3">
           <Avatar className="h-11 w-11">
-            <AvatarImage src={avatarImage.src} alt="User Avatar" />
+            <AvatarImage src={user?.avatar || "/avatar.jpg"} alt="User Avatar" />
 
             <AvatarFallback>EM</AvatarFallback>
           </Avatar>
 
           <div>
-            <h4 className="text-sm font-semibold">Md Emon</h4>
+            <h4 className="text-sm font-semibold">{user?.name || "User"}</h4>
 
-            <p className="text-xs text-muted-foreground">emon@gmail.com</p>
+            <p className="text-xs text-muted-foreground">{user?.email || "user@gmail.com"}</p>
           </div>
         </div>
 
@@ -169,7 +184,7 @@ export default function AvatarDropdown({ type = "user" }: AvatarDropdownProps) {
           "
         >
           <LogOut className="h-4 w-4" />
-          Log out
+          <button onClick={handleLogout}>Log out</button>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

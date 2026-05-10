@@ -7,8 +7,11 @@ import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import NotificationPage from "@/app/(dashboard)/admin-dashboard/notification/page";
 import AvatarDropdown from "@/app/components/user-avatar";
-
-export function SiteHeader() {
+type SiteHeaderProps = {
+  type?: "admin" | "user";
+  user: { name: string; email: string; avatar: string };
+};
+export function SiteHeader({ type = "user", user }: SiteHeaderProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false); // 2. Add mounted state
 
@@ -50,7 +53,7 @@ export function SiteHeader() {
           </button>
 
           <NotificationPage />
-          <AvatarDropdown />
+          <AvatarDropdown type={type} user={user} />
         </div>
       </div>
     </header>

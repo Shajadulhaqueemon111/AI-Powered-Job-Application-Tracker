@@ -27,6 +27,7 @@ import {
   BellIcon,
   LogOutIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type NavUserProps = {
   user: {
@@ -45,7 +46,16 @@ export function NavUser({ user, type }: NavUserProps) {
 
   // ✅ dynamic base route
   const base = role === "admin" ? "/admin-dashboard" : "/user-dashboard";
+const router = useRouter();
 
+const handleLogout = () => {
+  // remove token cookie
+  document.cookie =
+    "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+
+  // redirect
+  router.push("/login");
+};
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -136,7 +146,7 @@ export function NavUser({ user, type }: NavUserProps) {
             {/* LOGOUT */}
             <DropdownMenuItem
               className="flex items-center gap-2 text-red-500 cursor-pointer"
-              onClick={() => console.log("logout")}
+              onClick={handleLogout}
             >
               <LogOutIcon className="size-4" />
               Log out

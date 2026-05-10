@@ -5,6 +5,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AppSidebar } from "@/components/app-sidebar";
+import { getUser } from "@/app/lib/get-user";
 
 export const metadata: Metadata = {
   title: "User Dashboard",
@@ -12,11 +13,12 @@ export const metadata: Metadata = {
   keywords: ["jobs", "dashboard", "ai matcher", "career"],
 };
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user=await getUser()
   return (
     <ThemeProvider
       attribute="class"
@@ -35,10 +37,10 @@ export default function DashboardLayout({
         >
           <div className="flex w-full min-h-screen bg-background text-foreground">
             {/* 👇 USER SIDEBAR (AdminSidebar না) */}
-            <AppSidebar type="user" />
+            <AppSidebar type="user"    user={user ?? { name: "User", email: "user@gmail.com", avatar: "/avatar.jpg" }} />
 
             <SidebarInset className="flex-1">
-              <SiteHeader />
+              <SiteHeader type="user" user={user ?? { name: "User", email: "user@gmail.com", avatar: "/avatar.jpg" }} />
               {children}
             </SidebarInset>
           </div>

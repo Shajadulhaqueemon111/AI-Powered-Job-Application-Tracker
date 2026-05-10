@@ -4,6 +4,7 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Providers from "./providers";
 import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 
 
 const geistSans = Geist({
@@ -44,6 +45,7 @@ export default function RootLayout({
     >
           <Providers>
             <main>{children}</main>
+            <Toaster/>
           </Providers>
         </ThemeProvider>
       </body>

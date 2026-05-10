@@ -1,5 +1,7 @@
-import { cookies } from "next/headers";
+'use server";'
+
 import { jwtVerify } from "jose";
+import { cookies } from "next/headers";
 
 const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET!);
 
