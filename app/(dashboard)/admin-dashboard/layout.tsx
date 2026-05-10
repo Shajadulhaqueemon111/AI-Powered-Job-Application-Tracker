@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
+import { getUser } from "@/app/lib/get-user";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
@@ -11,18 +12,14 @@ export const metadata: Metadata = {
   keywords: ["admin", "dashboard", "management"],
 };
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+    const user = await getUser();
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
+ 
       <TooltipProvider>
         <SidebarProvider
           style={
@@ -33,7 +30,7 @@ export default function AdminLayout({
           }
         >
           <div className="flex w-full min-h-screen bg-background text-foreground">
-            <AppSidebar type="admin" />
+            <AppSidebar type="admin"  user={user ?? { name: "User", email: "user@gmail.com", avatar: "/avatar.jpg" }} />
             <SidebarInset className="flex-1">
               <SiteHeader />
               {children}
@@ -41,6 +38,6 @@ export default function AdminLayout({
           </div>
         </SidebarProvider>
       </TooltipProvider>
-    </ThemeProvider>
+   
   );
 }

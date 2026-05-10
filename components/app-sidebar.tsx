@@ -11,10 +11,20 @@ import { NavUser } from "@/components/nav-user";
 import { adminSidebar } from "@/app/(dashboard)/admin-dashboard/lib/admin-sidebar-config";
 import { userSidebar } from "@/app/(dashboard)/user-dashboard/lib/user-sidebar-config";
 
+type UserProps = {
+  name: string;
+  email: string;
+  avatar: string;
+};
+
 export function AppSidebar({
   type = "admin",
+  user = { name: "User", email: "user@gmail.com", avatar: "/avatar.jpg" }, // ✅ default
   ...props
-}: React.ComponentProps<typeof Sidebar> & { type?: "admin" | "user" }) {
+}: React.ComponentProps<typeof Sidebar> & {
+  type?: "admin" | "user";
+  user: UserProps;
+}) {
   const data = type === "admin" ? adminSidebar : userSidebar;
 
   return (
@@ -25,14 +35,7 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser
-          user={{
-            name: "User",
-            email: "user@gmail.com",
-            avatar: "/avatar.jpg", // ✅ ADD THIS
-          }}
-          type={type}
-        />
+        <NavUser user={user} type={type} />
       </SidebarFooter>
     </Sidebar>
   );
