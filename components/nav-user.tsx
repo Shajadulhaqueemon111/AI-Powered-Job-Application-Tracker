@@ -28,6 +28,9 @@ import {
   LogOutIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { authApi, useLogOutMutation } from "@/app/redux/features/auth/authApi";
+import { useDispatch } from "react-redux";
+import { logout } from "@/app/redux/features/auth/authSlice";
 
 type NavUserProps = {
   user: {
@@ -46,16 +49,23 @@ export function NavUser({ user, type }: NavUserProps) {
 
   // ✅ dynamic base route
   const base = role === "admin" ? "/admin-dashboard" : "/user-dashboard";
-const router = useRouter();
+  const router = useRouter();
 
-const handleLogout = () => {
-  // remove token cookie
-  document.cookie =
-    "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+  const dispatch = useDispatch();
 
-  // redirect
-  router.push("/login");
-};
+  const handleLogout = async () => {
+    try {
+      await logout(); //
+
+      dispatch(logout()); //
+
+      dispatch(authApi.util.resetApiState()); //
+
+      router.push("/login");
+    } catch (err) {
+      console.log("Logout failed:", err);
+    }
+  };
   return (
     <SidebarMenu>
       <SidebarMenuItem>

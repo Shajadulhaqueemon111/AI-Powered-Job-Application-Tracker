@@ -17,8 +17,11 @@ import { Button } from "@/components/ui/button";
 
 import { User, Bell, CreditCard, LogOut, Settings } from "lucide-react";
 
-import avatarImage from "../.././public/avatar.jpg";
+// import avatarImage from "../.././public/avatar.jpg";
 import { useRouter } from "next/navigation";
+import { authApi } from "../redux/features/auth/authApi";
+import { logout } from "../redux/features/auth/authSlice";
+import { useDispatch } from "react-redux";
 
 type AvatarDropdownProps = {
   type?: "admin" | "user";
@@ -29,20 +32,30 @@ type AvatarDropdownProps = {
   };
 };
 
-export default function AvatarDropdown({ type = "user", user }: AvatarDropdownProps) {
+export default function AvatarDropdown({
+  type = "user",
+  user,
+}: AvatarDropdownProps) {
   /* ---------------- ROUTES ---------------- */
 
   const baseRoute = type === "admin" ? "/admin-dashboard" : "/user-dashboard";
-const router = useRouter();
+  const router = useRouter();
 
-const handleLogout = () => {
-  // remove token cookie
-  document.cookie =
-    "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+  const dispatch = useDispatch();
 
-  // redirect
-  router.push("/login");
-};
+  const handleLogout = async () => {
+    try {
+      await logout(); //
+
+      dispatch(logout()); //
+
+      dispatch(authApi.util.resetApiState()); //
+
+      router.push("/login");
+    } catch (err) {
+      console.log("Logout failed:", err);
+    }
+  };
   return (
     <DropdownMenu>
       {/* TRIGGER */}
@@ -59,7 +72,10 @@ const handleLogout = () => {
           "
         >
           <Avatar className="h-10 w-10 border-2 border-primary/20">
-            <AvatarImage src={user?.avatar || "/avatar.jpg"} alt="User Avatar" />
+            <AvatarImage
+              src={user?.avatar || "/avatar.jpg"}
+              alt="User Avatar"
+            />
 
             <AvatarFallback className="bg-primary text-primary-foreground">
               EM
@@ -84,7 +100,10 @@ const handleLogout = () => {
         {/* USER INFO */}
         <div className="flex items-center gap-3 px-3 py-3">
           <Avatar className="h-11 w-11">
-            <AvatarImage src={user?.avatar || "/avatar.jpg"} alt="User Avatar" />
+            <AvatarImage
+              src={user?.avatar || "/avatar.jpg"}
+              alt="User Avatar"
+            />
 
             <AvatarFallback>EM</AvatarFallback>
           </Avatar>
@@ -92,7 +111,9 @@ const handleLogout = () => {
           <div>
             <h4 className="text-sm font-semibold">{user?.name || "User"}</h4>
 
-            <p className="text-xs text-muted-foreground">{user?.email || "user@gmail.com"}</p>
+            <p className="text-xs text-muted-foreground">
+              {user?.email || "user@gmail.com"}
+            </p>
           </div>
         </div>
 

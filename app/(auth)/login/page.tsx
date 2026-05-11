@@ -43,7 +43,6 @@ export default function LoginPage() {
         return;
       }
 
-      // ✅ Cookie সেট করো Next.js API route দিয়ে
       await fetch("/api/auth/set-cookie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
