@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET!);
 
 export async function middleware(req: NextRequest) {
-const token = req.cookies.get("accessToken")?.value;
+  const token = req.cookies.get("accessToken")?.value;
   const path = req.nextUrl.pathname;
 
   console.log("TOKEN:", token);
@@ -16,7 +16,6 @@ const token = req.cookies.get("accessToken")?.value;
   }
 
   try {
-    
     const { payload } = await jwtVerify(token, secret);
     const role = payload.role;
 
@@ -29,7 +28,6 @@ const token = req.cookies.get("accessToken")?.value;
     }
 
     return NextResponse.next();
-
   } catch {
     return NextResponse.redirect(new URL("/login", req.url));
   }

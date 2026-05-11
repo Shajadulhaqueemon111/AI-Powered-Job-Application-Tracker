@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-
 import { useLoginMutation } from "@/app/redux/features/auth/authApi";
 
 type FormData = {
@@ -21,7 +20,6 @@ type FormData = {
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [loginUser] = useLoginMutation();
   const [loading, setLoading] = useState(false);
 
@@ -36,32 +34,38 @@ export default function LoginPage() {
       setLoading(true);
 
       const res = await loginUser(data).unwrap();
+      const token = res?.data?.accessToken;
+
+      console.log("TOKEN:", token);
+
+      if (!token) {
+        toast.error("Token not found ");
+        return;
+      }
+
+      // ✅ Cookie সেট করো Next.js API route দিয়ে
+      await fetch("/api/auth/set-cookie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: token }),
+      });
+
+      const decoded: any = jwtDecode(token);
+      const role = decoded?.role;
+      console.log("role:", role);
 
       toast.success("Login successful 🎉");
 
-      // ✅ token extract
-      const token = res?.data?.accessToken;
-
-      if (token) {
-        const decoded: any = jwtDecode(token);
-
-        const role = decoded?.role;
-
-        console.log("role:", role);
-
-        // save token (important)
-        localStorage.setItem("token", token);
-
-        // ✅ role based redirect
-        if (role === "admin") {
-          router.push("/admin-dashboard");
-        } else {
-          router.push("/user-dashboard");
-        }
+      // ✅ redirect
+      if (role === "admin") {
+        router.push("/admin-dashboard");
+      } else {
+        router.push("/user-dashboard");
       }
+
+      router.refresh();
     } catch (error: any) {
       console.log(error);
-
       toast.error(error?.data?.message || "Login failed ❌");
     } finally {
       setLoading(false);
@@ -82,20 +86,16 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Email */}
           <div className="space-y-2">
             <Label className="text-white">Email</Label>
             <Input
               placeholder="Enter your email"
               className="bg-white border-white/10 focus:border-cyan-400"
-              {...register("email", {
-                required: "Email is required",
-              })}
+              {...register("email", { required: "Email is required" })}
             />
             <p className="text-xs text-red-400">{errors.email?.message}</p>
           </div>
 
-          {/* Password */}
           <div className="space-y-2">
             <Label className="text-white">Password</Label>
             <Input
@@ -104,16 +104,12 @@ export default function LoginPage() {
               className="bg-white border-white/10 focus:border-cyan-400"
               {...register("password", {
                 required: "Password is required",
-                minLength: {
-                  value: 6,
-                  message: "Minimum 6 characters",
-                },
+                minLength: { value: 6, message: "Minimum 6 characters" },
               })}
             />
             <p className="text-xs text-red-400">{errors.password?.message}</p>
           </div>
 
-          {/* Button */}
           <Button
             type="submit"
             disabled={loading}
@@ -124,7 +120,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-sm text-white/60 mt-5">
-          Don’t have account?{" "}
+          Dont have account?{" "}
           <Link href="/register" className="text-cyan-400 hover:underline">
             Register
           </Link>
