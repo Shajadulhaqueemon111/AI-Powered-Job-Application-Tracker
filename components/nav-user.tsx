@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { authApi, useLogOutMutation } from "@/app/redux/features/auth/authApi";
 import { useDispatch } from "react-redux";
 import { logout } from "@/app/redux/features/auth/authSlice";
+import { logOut } from "@/app/(auth)/login/logOut";
 
 type NavUserProps = {
   user: {
@@ -51,15 +52,13 @@ export function NavUser({ user, type }: NavUserProps) {
   const base = role === "admin" ? "/admin-dashboard" : "/user-dashboard";
   const router = useRouter();
 
-  const dispatch = useDispatch();
-
   const handleLogout = async () => {
     try {
-      await logout(); //
+      await logOut(); //
 
-      dispatch(logout()); //
+      // dispatch(logout());
 
-      dispatch(authApi.util.resetApiState()); //
+      // dispatch(authApi.util.resetApiState());
 
       router.push("/login");
     } catch (err) {

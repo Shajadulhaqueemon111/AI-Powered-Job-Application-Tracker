@@ -19,9 +19,8 @@ import { User, Bell, CreditCard, LogOut, Settings } from "lucide-react";
 
 // import avatarImage from "../.././public/avatar.jpg";
 import { useRouter } from "next/navigation";
-import { authApi } from "../redux/features/auth/authApi";
-import { logout } from "../redux/features/auth/authSlice";
-import { useDispatch } from "react-redux";
+
+import { logOut } from "../(auth)/login/logOut";
 
 type AvatarDropdownProps = {
   type?: "admin" | "user";
@@ -41,15 +40,9 @@ export default function AvatarDropdown({
   const baseRoute = type === "admin" ? "/admin-dashboard" : "/user-dashboard";
   const router = useRouter();
 
-  const dispatch = useDispatch();
-
   const handleLogout = async () => {
     try {
-      await logout(); //
-
-      dispatch(logout()); //
-
-      dispatch(authApi.util.resetApiState()); //
+      await logOut(); //
 
       router.push("/login");
     } catch (err) {
