@@ -20,8 +20,19 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-export default function ProfileSettings() {
+type UserProps = {
+  user: {
+    name: string;
+    email: string;
+    role: string;
+    profileImage: string;
+    skills?: string[];
+    phoneNumber?: string;
+    address?: string;
+    status?: string;
+  } | null;
+};
+export default function ProfileSettings({ user }: UserProps) {
   /* ---------------- REFS ---------------- */
 
   const resumeRef = useRef<HTMLInputElement | null>(null);
@@ -32,7 +43,9 @@ export default function ProfileSettings() {
   const [resume, setResume] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [avatar, setAvatar] = useState("https://i.pravatar.cc/300?img=12");
+  const [avatar, setAvatar] = useState(
+    user?.profileImage || "https://i.pravatar.cc/300?img=12",
+  );
 
   /* ---------------- RESUME UPLOAD ---------------- */
 
@@ -98,16 +111,18 @@ export default function ProfileSettings() {
             </div>
 
             <div>
-              <h2 className="font-bold text-lg">Md Emon</h2>
+              <h2 className="font-bold text-lg">{user?.name || "John Doe"}</h2>
 
               <p className="text-sm text-zinc-500 flex items-center gap-1">
                 <Mail size={14} />
-                emon@gmail.com
+                {user?.email || "user@email.com"}
               </p>
 
-              <Badge className="mt-2 bg-green-500/10 text-green-500 border-green-500/20">
-                Recruiter Ready
-              </Badge>
+              {user?.status && (
+                <Badge className="mt-2 bg-green-500/10 text-green-500 border-green-500/20">
+                  {user.status}
+                </Badge>
+              )}
             </div>
 
             {/* HIDDEN INPUT */}
@@ -134,13 +149,27 @@ export default function ProfileSettings() {
                 <h2 className="font-semibold text-lg">Profile Information</h2>
               </div>
 
-              <Input placeholder="Your Full Name" />
+              <Input
+                placeholder="Your Full Name"
+                defaultValue={user?.name || ""}
+              />
 
-              <Input placeholder="Email Address" />
+              <Input
+                placeholder="Email Address"
+                defaultValue={user?.email || ""}
+              />
 
-              <Input placeholder="Phone Number" />
+              <Input
+                placeholder="Phone Number"
+                defaultValue={user?.phoneNumber || ""}
+              />
 
-              <Input placeholder="Your Skills (React, Next.js)" />
+              <Input placeholder="Address" defaultValue={user?.address || ""} />
+
+              <Input
+                placeholder="Your Skills (React, Next.js)"
+                defaultValue={user?.skills?.join(", ") || ""}
+              />
 
               <Button className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 text-white font-medium shadow-lg hover:scale-[1.01] transition">
                 Save Profile

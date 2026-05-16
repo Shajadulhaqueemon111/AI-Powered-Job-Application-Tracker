@@ -37,9 +37,9 @@ type NavUserProps = {
   user: {
     name: string;
     email: string;
-    avatar: string;
+    profileImage: string;
   };
-  type: "admin" | "user";
+  type: "admin" | "user" | "hr";
 };
 
 export function NavUser({ user, type }: NavUserProps) {
@@ -49,7 +49,12 @@ export function NavUser({ user, type }: NavUserProps) {
   const role = type ?? "user";
 
   // ✅ dynamic base route
-  const base = role === "admin" ? "/admin-dashboard" : "/user-dashboard";
+  const base =
+    role === "admin"
+      ? "/admin-dashboard"
+      : role === "hr"
+        ? "/hr-dashboard"
+        : "/user-dashboard";
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -75,7 +80,7 @@ export function NavUser({ user, type }: NavUserProps) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={user.profileImage} alt={user.name} />
                 <AvatarFallback>CN</AvatarFallback>
               </Avatar>
 
@@ -101,7 +106,7 @@ export function NavUser({ user, type }: NavUserProps) {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-2 py-2">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={user.profileImage} alt={user.name} />
                   <AvatarFallback>CN</AvatarFallback>
                 </Avatar>
 

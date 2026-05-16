@@ -15,7 +15,17 @@ import {
   Shield,
 } from "lucide-react";
 
-export default function UserProfile() {
+type UserProfileProps = {
+  user: {
+    name: string;
+    email: string;
+    role: string;
+    profileImage: string;
+    phoneNumber?: string;
+    address?: string;
+  } | null;
+};
+export default function UserProfile({ user }: UserProfileProps) {
   return (
     <div className="p-6 space-y-8">
       {/* HEADER */}
@@ -67,22 +77,32 @@ export default function UserProfile() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Name</Label>
-                <Input placeholder="John Doe" />
+                <Input placeholder="John Doe" defaultValue={user?.name || ""} />
               </div>
 
               <div>
                 <Label>Email</Label>
-                <Input placeholder="user@email.com" />
+                <Input
+                  placeholder="user@email.com"
+                  defaultValue={user?.email || ""}
+                />
               </div>
 
               <div>
                 <Label>Phone</Label>
-                <Input placeholder="+880..." />
+                <Input
+                  placeholder="+880..."
+                  defaultValue={user?.phoneNumber || ""}
+                />
               </div>
 
               <div>
                 <Label>Role</Label>
-                <Input placeholder="Admin" disabled />
+                <Input
+                  placeholder="Admin"
+                  defaultValue={user?.role || ""}
+                  disabled
+                />
               </div>
             </div>
 

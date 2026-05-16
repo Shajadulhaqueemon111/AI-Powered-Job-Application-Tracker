@@ -9,9 +9,18 @@ import { getUser } from "@/app/lib/get-user";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "User Dashboard",
-  description: "Job seeker dashboard for tracking applications and AI insights",
-  keywords: ["jobs", "dashboard", "ai matcher", "career"],
+  title: "HR Dashboard",
+  description:
+    "HR dashboard for managing job posts, applicants, interviews, and AI-powered hiring insights",
+  keywords: [
+    "HR",
+    "recruitment",
+    "job management",
+    "applicants",
+    "hiring",
+    "AI matcher",
+    "dashboard",
+  ],
 };
 
 export default async function DashboardLayout({
@@ -40,11 +49,11 @@ export default async function DashboardLayout({
           }
         >
           <div className="flex w-full min-h-screen bg-background text-foreground">
-            {/* 👇 USER SIDEBAR (AdminSidebar না) */}
-            <AppSidebar type="user" user={user} />
+            {/*  HR SIDEBAR (AdminSidebar না) */}
+            <AppSidebar type="hr" user={user} />
 
             <SidebarInset className="flex-1">
-              <SiteHeader type="user" user={user} />
+              <SiteHeader type="hr" user={user} />
               {children}
             </SidebarInset>
           </div>

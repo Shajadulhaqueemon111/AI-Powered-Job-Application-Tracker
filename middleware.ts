@@ -23,6 +23,9 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 
+    if (path.startsWith("/hr-dashboard") && role !== "hr") {
+      return NextResponse.redirect(new URL("/unauthorized", req.url));
+    }
     if (path.startsWith("/user-dashboard") && role !== "user") {
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
@@ -34,5 +37,9 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin-dashboard/:path*", "/user-dashboard/:path*"],
+  matcher: [
+    "/admin-dashboard/:path*",
+    "/hr-dashboard/:path*",
+    "/user-dashboard/:path*",
+  ],
 };

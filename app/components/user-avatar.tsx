@@ -23,11 +23,11 @@ import { useRouter } from "next/navigation";
 import { logOut } from "../(auth)/login/logOut";
 
 type AvatarDropdownProps = {
-  type?: "admin" | "user";
+  type?: "admin" | "user" | "hr";
   user?: {
     name: string;
     email: string;
-    avatar: string;
+    profileImage: string;
   };
 };
 
@@ -37,7 +37,12 @@ export default function AvatarDropdown({
 }: AvatarDropdownProps) {
   /* ---------------- ROUTES ---------------- */
 
-  const baseRoute = type === "admin" ? "/admin-dashboard" : "/user-dashboard";
+  const baseRoute =
+    type === "admin"
+      ? "/admin-dashboard"
+      : type === "hr"
+        ? "/hr-dashboard"
+        : "/user-dashboard";
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -66,7 +71,7 @@ export default function AvatarDropdown({
         >
           <Avatar className="h-10 w-10 border-2 border-primary/20">
             <AvatarImage
-              src={user?.avatar || "/avatar.jpg"}
+              src={user?.profileImage || "/avatar.jpg"}
               alt="User Avatar"
             />
 
@@ -94,7 +99,7 @@ export default function AvatarDropdown({
         <div className="flex items-center gap-3 px-3 py-3">
           <Avatar className="h-11 w-11">
             <AvatarImage
-              src={user?.avatar || "/avatar.jpg"}
+              src={user?.profileImage || "/avatar.jpg"}
               alt="User Avatar"
             />
 

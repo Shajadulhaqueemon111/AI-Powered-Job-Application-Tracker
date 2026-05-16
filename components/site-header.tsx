@@ -8,8 +8,8 @@ import { Moon, Sun } from "lucide-react";
 import NotificationPage from "@/app/(dashboard)/admin-dashboard/notification/page";
 import AvatarDropdown from "@/app/components/user-avatar";
 type SiteHeaderProps = {
-  type?: "admin" | "user";
-  user: { name: string; email: string; avatar: string };
+  type?: "admin" | "user" | "hr";
+  user: { name: string; email: string; profileImage: string };
 };
 export function SiteHeader({ type = "user", user }: SiteHeaderProps) {
   const { theme, setTheme } = useTheme();

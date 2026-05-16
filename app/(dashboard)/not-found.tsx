@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import AdminNotFound from "./admin-dashboard/not-found";
 import UserNotFound from "./user-dashboard/not-found";
 import GlobalNotFound from "../not-found";
+import HrNotFound from "./hr-dashboard/not-found";
 
 export default async function DashboardNotFound() {
   const headersList = await headers();
@@ -10,6 +11,10 @@ export default async function DashboardNotFound() {
 
   if (pathname.startsWith("/admin-dashboard")) {
     return <AdminNotFound />;
+  }
+
+  if (pathname.startsWith("/hr-dashboard")) {
+    return <HrNotFound />;
   }
 
   if (pathname.startsWith("/user-dashboard")) {

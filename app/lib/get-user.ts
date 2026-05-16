@@ -1,4 +1,4 @@
-'use server";'
+'use server";';
 
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
@@ -18,7 +18,14 @@ export async function getUser() {
       name: payload.name as string,
       email: payload.email as string,
       role: payload.role as string,
-      avatar: (payload.profileImage as string) || "/avatar.jpg",
+      profileImage: (payload.profileImage as string) || "/avatar.jpg",
+      phoneNumber:
+        typeof payload.phoneNumber === "string"
+          ? payload.phoneNumber
+          : undefined,
+
+      address:
+        typeof payload.address === "string" ? payload.address : undefined,
     };
   } catch {
     return null;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import ProfileSettings from "./profile/page";
+import { getUser } from "@/app/lib/get-user";
 
 export const metadata: Metadata = {
   title: "Settings | User Dashboard",
@@ -20,6 +21,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  return <ProfileSettings />;
+export default async function Page() {
+  const user = await getUser();
+
+  return <ProfileSettings user={user} />;
 }

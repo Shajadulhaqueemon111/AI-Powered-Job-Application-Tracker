@@ -10,22 +10,24 @@ import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import { adminSidebar } from "@/app/(dashboard)/admin-dashboard/lib/admin-sidebar-config";
 import { userSidebar } from "@/app/(dashboard)/user-dashboard/lib/user-sidebar-config";
+import { hrSidebar } from "@/app/(dashboard)/hr-dashboard/lib/hr-sidebar-config";
 
 type UserProps = {
   name: string;
   email: string;
-  avatar: string;
+  profileImage: string;
 };
 
 export function AppSidebar({
   type = "admin",
-  user = { name: "User", email: "user@gmail.com", avatar: "/avatar.jpg" }, // ✅ default
+  user = { name: "User", email: "user@gmail.com", profileImage: "/avatar.jpg" }, // ✅ default
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
-  type?: "admin" | "user";
+  type?: "admin" | "hr" | "user";
   user: UserProps;
 }) {
-  const data = type === "admin" ? adminSidebar : userSidebar;
+  const data =
+    type === "admin" ? adminSidebar : type === "hr" ? hrSidebar : userSidebar;
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
