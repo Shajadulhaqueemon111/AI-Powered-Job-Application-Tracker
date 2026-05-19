@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import JobCreateForm from "./create-job-forms/page";
+import JobCreateForm from "./create-job-forms/job-create-form";
 
 /* ---------------- METADATA ---------------- */
 export const metadata: Metadata = {
