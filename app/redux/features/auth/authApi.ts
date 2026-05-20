@@ -11,12 +11,18 @@ export interface LoginData {
   password: string;
 }
 
+export interface VerifyOtpData {
+  email: string;
+  otp: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   message: string;
   data: {
     accessToken: string;
-    user: {
+    refreshToken?: string;
+    user?: {
       _id: string;
       name: string;
       email: string;
@@ -34,6 +40,7 @@ export const authApi = createApi({
   }),
 
   endpoints: (builder) => ({
+    // ================= REGISTER =================
     register: builder.mutation<AuthResponse, RegisterData>({
       query: (userData) => ({
         url: "user/register",
@@ -42,6 +49,7 @@ export const authApi = createApi({
       }),
     }),
 
+    // ================= LOGIN (OTP SEND) =================
     login: builder.mutation<AuthResponse, LoginData>({
       query: (loginData) => ({
         url: "auth/login",
@@ -49,6 +57,17 @@ export const authApi = createApi({
         body: loginData,
       }),
     }),
+
+    // ================= VERIFY OTP (TOKEN GENERATE) =================
+    verifyOtp: builder.mutation<AuthResponse, VerifyOtpData>({
+      query: (otpData) => ({
+        url: "auth/verify-otp",
+        method: "POST",
+        body: otpData,
+      }),
+    }),
+
+    // ================= REFRESH TOKEN =================
     refreshToken: builder.mutation<AuthResponse, void>({
       query: () => ({
         url: "auth/refresh-token",
@@ -56,6 +75,7 @@ export const authApi = createApi({
       }),
     }),
 
+    // ================= LOGOUT =================
     logOut: builder.mutation<void, void>({
       query: () => ({
         url: "auth/logout",
@@ -68,6 +88,7 @@ export const authApi = createApi({
 export const {
   useRegisterMutation,
   useLoginMutation,
+  useVerifyOtpMutation,
   useRefreshTokenMutation,
   useLogOutMutation,
 } = authApi;

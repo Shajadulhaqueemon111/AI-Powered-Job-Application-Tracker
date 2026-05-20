@@ -5,23 +5,73 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { useLoginMutation } from "@/app/redux/features/auth/authApi";
+
+import {
+  useLoginMutation,
+  useVerifyOtpMutation,
+} from "@/app/redux/features/auth/authApi";
+
+import { Spinner } from "@/components/ui/spinner";
 
 type FormData = {
   email: string;
   password: string;
 };
 
+type AuthStep = "login" | "otp" | "done";
+
 export default function LoginPage() {
   const router = useRouter();
+
   const [loginUser] = useLoginMutation();
+  const [verifyOtp] = useVerifyOtpMutation();
+
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  const [showOtpModal, setShowOtpModal] = useState(false);
+
+  const [otp, setOtp] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+
+  const [authStep, setAuthStep] = useState<AuthStep>("login");
+
+  // ================= TIMER =================
+  const [timeLeft, setTimeLeft] = useState(120);
+  const [timerActive, setTimerActive] = useState(false);
+
+  useEffect(() => {
+    let interval: any;
+
+    if (showOtpModal && timerActive) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+
+            toast.error("OTP expired ⌛");
+
+            setShowOtpModal(false);
+            setOtp("");
+            setTimerActive(false);
+            setAuthStep("login"); // reset flow
+
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [showOtpModal, timerActive]);
 
   const {
     register,
@@ -29,17 +79,45 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<FormData>();
 
+  // ================= LOGIN =================
   const onSubmit = async (data: FormData) => {
+    if (authStep !== "login") return; // 🔒 HARD LOCK
+
     try {
       setLoading(true);
 
-      const res = await loginUser(data).unwrap();
+      await loginUser(data).unwrap();
+
+      setUserEmail(data.email);
+      setShowOtpModal(true);
+
+      setAuthStep("otp"); // 🔒 LOCK LOGIN AFTER OTP SENT
+
+      setTimeLeft(120);
+      setTimerActive(true);
+
+      toast.success("OTP sent to your email 📩");
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Login failed ❌");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ================= VERIFY OTP =================
+  const handleVerifyOtp = async () => {
+    try {
+      setVerifying(true);
+
+      const res = await verifyOtp({
+        email: userEmail,
+        otp,
+      }).unwrap();
+
       const token = res?.data?.accessToken;
 
-      console.log("TOKEN:", token);
-
       if (!token) {
-        toast.error("Token not found ");
+        toast.error("Token not found");
         return;
       }
 
@@ -51,11 +129,13 @@ export default function LoginPage() {
 
       const decoded: any = jwtDecode(token);
       const role = decoded?.role;
-      console.log("role:", role);
+
+      setTimerActive(false);
+      setShowOtpModal(false);
+      setAuthStep("done"); // 🔒 FINAL STATE
 
       toast.success("Login successful 🎉");
 
-      // ✅ redirect
       if (role === "admin") {
         router.push("/admin-dashboard");
       } else if (role === "hr") {
@@ -66,67 +146,106 @@ export default function LoginPage() {
 
       router.refresh();
     } catch (error: any) {
-      console.log(error);
-      toast.error(error?.data?.message || "Login failed ❌");
+      toast.error(error?.data?.message || "OTP verification failed ❌");
     } finally {
-      setLoading(false);
+      setVerifying(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#070A12] via-[#0b1020] to-[#0a0f1f] px-4 overflow-hidden">
-      <div className="absolute w-[300px] h-[300px] bg-cyan-500/20 blur-3xl rounded-full -top-20 -left-20" />
-      <div className="absolute w-[300px] h-[300px] bg-pink-500/20 blur-3xl rounded-full -bottom-20 -right-20" />
-
-      <Card className="relative w-full max-w-md p-6 border border-white/10 bg-white/5 backdrop-blur-xl rounded-2xl z-10">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-[#070A12] via-[#0b1020] to-[#0a0f1f] px-4">
+      {/* LOGIN CARD */}
+      <Card className="w-full max-w-md p-6 bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl">
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold text-transparent bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text">
             Welcome Back
           </h1>
-          <p className="text-sm text-white/60">Login to continue</p>
+          <p className="text-white/60 text-sm">Login to continue</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label className="text-white">Email</Label>
+          <div>
+            <Label className="text-white mb-2">Email</Label>
             <Input
-              placeholder="Enter your email"
-              className="bg-white border-white/10 focus:border-cyan-400"
+              className="text-white"
+              placeholder="correct email"
               {...register("email", { required: "Email is required" })}
             />
-            <p className="text-xs text-red-400">{errors.email?.message}</p>
+            <p className="text-red-400 text-xs">{errors.email?.message}</p>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-white">Password</Label>
+          <div>
+            <Label className="text-white mb-2">Password</Label>
             <Input
               type="password"
-              placeholder="Enter your password"
-              className="bg-white border-white/10 focus:border-cyan-400"
-              {...register("password", {
-                required: "Password is required",
-                minLength: { value: 6, message: "Minimum 6 characters" },
-              })}
+              placeholder="password"
+              className="text-white"
+              {...register("password", { required: "Password is required" })}
             />
-            <p className="text-xs text-red-400">{errors.password?.message}</p>
+            <p className="text-red-400 text-xs">{errors.password?.message}</p>
           </div>
 
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 hover:opacity-90 transition"
-          >
-            {loading ? "Logging in..." : "Login"}
+          <Button disabled={loading || authStep !== "login"} className="w-full">
+            {loading ? "Sending OTP..." : "Login"}
           </Button>
         </form>
 
-        <p className="text-center text-sm text-white/60 mt-5">
-          Dont have account?{" "}
-          <Link href="/register" className="text-cyan-400 hover:underline">
+        <p className="text-center text-white/60 mt-4 text-sm">
+          Don&apos;t have account?{" "}
+          <Link href="/register" className="text-cyan-400">
             Register
           </Link>
         </p>
       </Card>
+
+      {/* ================= OTP MODAL ================= */}
+      {showOtpModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/70">
+          <div className="bg-[#0f172a] p-6 rounded-xl w-full max-w-sm border border-white/10">
+            <h2 className="text-white text-center text-xl mb-2">Verify OTP</h2>
+
+            <p className="text-center text-red-400 mb-2">
+              OTP expires in: {Math.floor(timeLeft / 60)}:
+              {(timeLeft % 60).toString().padStart(2, "0")}
+            </p>
+
+            <Input
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              className=" text-white"
+              placeholder="Enter OTP"
+            />
+
+            <Button
+              onClick={handleVerifyOtp}
+              disabled={verifying}
+              className="w-full mt-4"
+            >
+              {verifying ? "Verifying..." : "Verify OTP"}
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              onClick={() => {
+                setShowOtpModal(false);
+                setAuthStep("login"); // reset
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {verifying && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70">
+          <div className="flex flex-col items-center gap-3">
+            <Spinner />
+            <p className="text-white">Verifying OTP...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
