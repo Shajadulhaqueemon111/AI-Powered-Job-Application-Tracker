@@ -20,14 +20,30 @@ export interface AuthResponse {
   success: boolean;
   message: string;
   data: {
-    accessToken: string;
+    accessToken?: string;
     refreshToken?: string;
+    twoFactorEnabled?: boolean; // ✅
+    email?: string;
+    userId?: string;
     user?: {
       _id: string;
       name: string;
       email: string;
       role: string;
     };
+  };
+}
+
+// ✅ 2FA toggle interface
+export interface TwoFactorToggleData {
+  enable: boolean;
+}
+
+export interface TwoFactorToggleResponse {
+  success: boolean;
+  message: string;
+  data: {
+    twoFactorEnabled: boolean;
   };
 }
 
@@ -82,6 +98,18 @@ export const authApi = createApi({
         method: "POST",
       }),
     }),
+
+    // ================= 2FA TOGGLE =================
+    toggleTwoFactor: builder.mutation<
+      TwoFactorToggleResponse,
+      TwoFactorToggleData
+    >({
+      query: (data) => ({
+        url: "auth/2fa/toggle",
+        method: "PATCH",
+        body: data,
+      }),
+    }),
   }),
 });
 
@@ -91,4 +119,5 @@ export const {
   useVerifyOtpMutation,
   useRefreshTokenMutation,
   useLogOutMutation,
+  useToggleTwoFactorMutation, // ✅
 } = authApi;

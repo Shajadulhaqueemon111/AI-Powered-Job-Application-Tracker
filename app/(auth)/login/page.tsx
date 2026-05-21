@@ -43,10 +43,16 @@ export default function LoginPage() {
 
   const [authStep, setAuthStep] = useState<AuthStep>("login");
 
-  // ================= TIMER =================
   const [timeLeft, setTimeLeft] = useState(120);
   const [timerActive, setTimerActive] = useState(false);
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormData>();
+
+  // ================= TIMER =================
   useEffect(() => {
     let interval: any;
 
@@ -61,7 +67,7 @@ export default function LoginPage() {
             setShowOtpModal(false);
             setOtp("");
             setTimerActive(false);
-            setAuthStep("login"); // reset flow
+            setAuthStep("login");
 
             return 0;
           }
@@ -73,25 +79,57 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [showOtpModal, timerActive]);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FormData>();
-
   // ================= LOGIN =================
   const onSubmit = async (data: FormData) => {
-    if (authStep !== "login") return; // 🔒 HARD LOCK
+    if (authStep !== "login") return;
 
     try {
       setLoading(true);
 
-      await loginUser(data).unwrap();
+      const res = await loginUser(data).unwrap();
+
+      /**
+       * 🔥 IMPORTANT FIX:
+       * backend must return:
+       * {
+       *   twoFactorRequired: boolean,
+       *   data?: { accessToken }
+       * }
+       */
 
       setUserEmail(data.email);
-      setShowOtpModal(true);
 
-      setAuthStep("otp"); // 🔒 LOCK LOGIN AFTER OTP SENT
+      // ================= NO 2FA =================
+      if (!res?.data?.twoFactorEnabled) {
+        const token = res?.data?.accessToken;
+
+        if (!token) {
+          toast.error("Token not found");
+          return;
+        }
+
+        await fetch("/api/auth/set-cookie", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accessToken: token }),
+        });
+
+        const decoded: any = jwtDecode(token);
+        const role = decoded?.role;
+
+        toast.success("Login successful 🎉");
+
+        if (role === "admin") router.push("/admin-dashboard");
+        else if (role === "hr") router.push("/hr-dashboard");
+        else router.push("/user-dashboard");
+
+        router.refresh();
+        return;
+      }
+
+      // ================= 2FA ENABLED =================
+      setShowOtpModal(true);
+      setAuthStep("otp");
 
       setTimeLeft(120);
       setTimerActive(true);
@@ -132,21 +170,17 @@ export default function LoginPage() {
 
       setTimerActive(false);
       setShowOtpModal(false);
-      setAuthStep("done"); // 🔒 FINAL STATE
+      setAuthStep("done");
 
       toast.success("Login successful 🎉");
 
-      if (role === "admin") {
-        router.push("/admin-dashboard");
-      } else if (role === "hr") {
-        router.push("/hr-dashboard");
-      } else {
-        router.push("/user-dashboard");
-      }
+      if (role === "admin") router.push("/admin-dashboard");
+      else if (role === "hr") router.push("/hr-dashboard");
+      else router.push("/user-dashboard");
 
       router.refresh();
     } catch (error: any) {
-      toast.error(error?.data?.message || "OTP verification failed ❌");
+      toast.error(error?.data?.message || "OTP verification failed");
     } finally {
       setVerifying(false);
     }
@@ -186,7 +220,7 @@ export default function LoginPage() {
           </div>
 
           <Button disabled={loading || authStep !== "login"} className="w-full">
-            {loading ? "Sending OTP..." : "Login"}
+            {loading ? "Processing..." : "Login"}
           </Button>
         </form>
 
@@ -229,7 +263,7 @@ export default function LoginPage() {
               className="w-full mt-2"
               onClick={() => {
                 setShowOtpModal(false);
-                setAuthStep("login"); // reset
+                setAuthStep("login");
               }}
             >
               Cancel

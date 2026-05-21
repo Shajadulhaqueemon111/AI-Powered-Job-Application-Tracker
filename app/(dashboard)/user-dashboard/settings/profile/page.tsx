@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner"; // ✅ or your toast library
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToggleTwoFactorMutation } from "@/app/redux/features/auth/authApi";
+
 type UserProps = {
   user: {
     name: string;
@@ -30,44 +33,48 @@ type UserProps = {
     phoneNumber?: string;
     address?: string;
     status?: string;
+    twoFactorEnabled?: boolean; // ✅
   } | null;
 };
-export default function ProfileSettings({ user }: UserProps) {
-  /* ---------------- REFS ---------------- */
 
+export default function ProfileSettings({ user }: UserProps) {
   const resumeRef = useRef<HTMLInputElement | null>(null);
   const avatarRef = useRef<HTMLInputElement | null>(null);
 
-  /* ---------------- STATES ---------------- */
-
   const [resume, setResume] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
   const [avatar, setAvatar] = useState(
     user?.profileImage || "https://i.pravatar.cc/300?img=12",
   );
 
-  /* ---------------- RESUME UPLOAD ---------------- */
+  // ✅ 2FA state & mutation
+  const [twoFactor, setTwoFactor] = useState(user?.twoFactorEnabled || false);
+  const [toggleTwoFactor, { isLoading: twoFactorLoading }] =
+    useToggleTwoFactorMutation();
 
   const handleResumeUpload = (file: File | undefined) => {
     if (!file) return;
-
     setLoading(true);
-
     setTimeout(() => {
       setResume(file.name);
       setLoading(false);
     }, 1500);
   };
 
-  /* ---------------- PROFILE IMAGE ---------------- */
-
   const handleAvatarUpload = (file: File | undefined) => {
     if (!file) return;
+    setAvatar(URL.createObjectURL(file));
+  };
 
-    const imageUrl = URL.createObjectURL(file);
-
-    setAvatar(imageUrl);
+  // ✅ 2FA toggle handler
+  const handleTwoFactorToggle = async (checked: boolean) => {
+    try {
+      const res = await toggleTwoFactor({ enable: checked }).unwrap();
+      setTwoFactor(checked);
+      toast.success(res.message); // "Two-factor authentication enabled/disabled"
+    } catch {
+      toast.error("Failed to update 2FA settings");
+    }
   };
 
   return (
@@ -79,45 +86,36 @@ export default function ProfileSettings({ user }: UserProps) {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col md:flex-row md:items-center md:justify-between gap-6"
         >
-          {/* LEFT */}
           <div>
             <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 bg-clip-text text-transparent">
               Profile Settings
             </h1>
-
             <p className="text-zinc-500 mt-2">
               Manage your AI-powered career profile & recruiter visibility
             </p>
           </div>
 
-          {/* PROFILE */}
           <div className="flex items-center gap-4">
             <div className="relative group">
               <Avatar className="w-24 h-24 border-4 border-white dark:border-zinc-800 shadow-2xl">
                 <AvatarImage src={avatar} />
                 <AvatarFallback>EM</AvatarFallback>
               </Avatar>
-
-              {/* CAMERA BUTTON */}
               <button
                 onClick={() => avatarRef.current?.click()}
                 className="absolute bottom-1 right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-2 rounded-full shadow-lg hover:scale-105 transition"
               >
                 <Camera size={16} />
               </button>
-
-              {/* HOVER */}
               <div className="absolute inset-0 rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition" />
             </div>
 
             <div>
               <h2 className="font-bold text-lg">{user?.name || "John Doe"}</h2>
-
               <p className="text-sm text-zinc-500 flex items-center gap-1">
                 <Mail size={14} />
                 {user?.email || "user@email.com"}
               </p>
-
               {user?.status && (
                 <Badge className="mt-2 bg-green-500/10 text-green-500 border-green-500/20">
                   {user.status}
@@ -125,7 +123,6 @@ export default function ProfileSettings({ user }: UserProps) {
               )}
             </div>
 
-            {/* HIDDEN INPUT */}
             <input
               ref={avatarRef}
               type="file"
@@ -145,32 +142,25 @@ export default function ProfileSettings({ user }: UserProps) {
                 <div className="p-2 rounded-xl bg-blue-500/10">
                   <User className="text-blue-500" size={18} />
                 </div>
-
                 <h2 className="font-semibold text-lg">Profile Information</h2>
               </div>
-
               <Input
                 placeholder="Your Full Name"
                 defaultValue={user?.name || ""}
               />
-
               <Input
                 placeholder="Email Address"
                 defaultValue={user?.email || ""}
               />
-
               <Input
                 placeholder="Phone Number"
                 defaultValue={user?.phoneNumber || ""}
               />
-
               <Input placeholder="Address" defaultValue={user?.address || ""} />
-
               <Input
                 placeholder="Your Skills (React, Next.js)"
                 defaultValue={user?.skills?.join(", ") || ""}
               />
-
               <Button className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 text-white font-medium shadow-lg hover:scale-[1.01] transition">
                 Save Profile
               </Button>
@@ -184,24 +174,27 @@ export default function ProfileSettings({ user }: UserProps) {
                 <div className="p-2 rounded-xl bg-purple-500/10">
                   <Shield className="text-purple-500" size={18} />
                 </div>
-
                 <h2 className="font-semibold text-lg">Security Settings</h2>
               </div>
 
+              {/* ✅ 2FA TOGGLE */}
               <div className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
                 <div>
                   <p className="font-medium">Two-Factor Authentication</p>
-
                   <p className="text-sm text-zinc-500">
-                    Extra protection for your account
+                    {twoFactor
+                      ? "🟢 Enabled — OTP required on login"
+                      : "🔴 Disabled — Login without OTP"}
                   </p>
                 </div>
-
-                <Switch />
+                <Switch
+                  checked={twoFactor}
+                  onCheckedChange={handleTwoFactorToggle}
+                  disabled={twoFactorLoading}
+                />
               </div>
 
               <Input type="password" placeholder="New Password" />
-
               <Button className="w-full rounded-xl">Update Password</Button>
             </CardContent>
           </Card>
@@ -213,7 +206,6 @@ export default function ProfileSettings({ user }: UserProps) {
                 <div className="p-2 rounded-xl bg-cyan-500/10">
                   <Upload className="text-cyan-500" size={18} />
                 </div>
-
                 <h2 className="font-semibold text-lg">Resume Upload</h2>
               </div>
 
@@ -226,7 +218,6 @@ export default function ProfileSettings({ user }: UserProps) {
                     <p className="text-blue-500 animate-pulse font-medium">
                       Uploading Resume...
                     </p>
-
                     <div className="w-40 h-2 mx-auto rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
                       <div className="h-full w-2/3 bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse" />
                     </div>
@@ -236,16 +227,13 @@ export default function ProfileSettings({ user }: UserProps) {
                     <p className="text-green-500 font-semibold">
                       Resume Uploaded Successfully ✔
                     </p>
-
                     <Badge className="text-sm px-4 py-1">{resume}</Badge>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <Upload className="mx-auto text-blue-500" size={42} />
-
                     <div>
                       <p className="font-medium">Click to upload Resume</p>
-
                       <p className="text-sm text-zinc-500 mt-1">
                         PDF only • Max 5MB
                       </p>
@@ -271,20 +259,16 @@ export default function ProfileSettings({ user }: UserProps) {
                 <div className="p-2 rounded-xl bg-yellow-500/10">
                   <Bell className="text-yellow-500" size={18} />
                 </div>
-
                 <h2 className="font-semibold text-lg">Notification Settings</h2>
               </div>
-
               <div className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
                 <span>Email Alerts</span>
                 <Switch defaultChecked />
               </div>
-
               <div className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
                 <span>Job Alerts</span>
                 <Switch defaultChecked />
               </div>
-
               <div className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
                 <span>Interview Reminders</span>
                 <Switch defaultChecked />
@@ -299,19 +283,15 @@ export default function ProfileSettings({ user }: UserProps) {
                 <div className="p-2 rounded-xl bg-purple-500/10">
                   <Sparkles className="text-purple-500" size={18} />
                 </div>
-
                 <h2 className="font-semibold text-lg">AI Career Insight</h2>
               </div>
-
               <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
                 Your profile is 78% optimized for recruiters. Add more projects,
                 skills, and certifications to increase your interview rate.
               </p>
-
               <div className="w-full h-3 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
                 <div className="h-full w-[78%] bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 rounded-full" />
               </div>
-
               <Button className="w-full bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 text-white rounded-xl">
                 Improve My Profile
               </Button>
