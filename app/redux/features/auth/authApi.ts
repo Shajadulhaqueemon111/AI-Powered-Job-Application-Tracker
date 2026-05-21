@@ -119,5 +119,5 @@ export const {
   useVerifyOtpMutation,
   useRefreshTokenMutation,
   useLogOutMutation,
-  useToggleTwoFactorMutation, // ✅
+  useToggleTwoFactorMutation,
 } = authApi;
