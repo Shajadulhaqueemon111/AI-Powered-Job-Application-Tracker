@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+
+/* ================= TYPES ================= */
 
 export interface RegisterData {
   name: string;
@@ -22,7 +25,7 @@ export interface AuthResponse {
   data: {
     accessToken?: string;
     refreshToken?: string;
-    twoFactorEnabled?: boolean; // ✅
+    twoFactorEnabled?: boolean;
     email?: string;
     userId?: string;
     user?: {
@@ -34,7 +37,6 @@ export interface AuthResponse {
   };
 }
 
-// ✅ 2FA toggle interface
 export interface TwoFactorToggleData {
   enable: boolean;
 }
@@ -47,16 +49,33 @@ export interface TwoFactorToggleResponse {
   };
 }
 
+/* ================= API ================= */
+
 export const authApi = createApi({
   reducerPath: "authApi",
 
   baseQuery: fetchBaseQuery({
     baseUrl: process.env.NEXT_PUBLIC_BASE_API,
     credentials: "include",
+
+    // 🔥 IMPORTANT FIX (production 401 solve)
+    prepareHeaders: (headers, { getState }) => {
+      const token =
+        (getState() as any).auth?.token ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("accessToken")
+          : null);
+
+      if (token) {
+        headers.set("authorization", `Bearer ${token}`);
+      }
+
+      return headers;
+    },
   }),
 
   endpoints: (builder) => ({
-    // ================= REGISTER =================
+    /* ================= REGISTER ================= */
     register: builder.mutation<AuthResponse, RegisterData>({
       query: (userData) => ({
         url: "user/register",
@@ -65,7 +84,7 @@ export const authApi = createApi({
       }),
     }),
 
-    // ================= LOGIN (OTP SEND) =================
+    /* ================= LOGIN ================= */
     login: builder.mutation<AuthResponse, LoginData>({
       query: (loginData) => ({
         url: "auth/login",
@@ -74,7 +93,7 @@ export const authApi = createApi({
       }),
     }),
 
-    // ================= VERIFY OTP (TOKEN GENERATE) =================
+    /* ================= VERIFY OTP ================= */
     verifyOtp: builder.mutation<AuthResponse, VerifyOtpData>({
       query: (otpData) => ({
         url: "auth/verify-otp",
@@ -83,7 +102,7 @@ export const authApi = createApi({
       }),
     }),
 
-    // ================= REFRESH TOKEN =================
+    /* ================= REFRESH TOKEN ================= */
     refreshToken: builder.mutation<AuthResponse, void>({
       query: () => ({
         url: "auth/refresh-token",
@@ -91,7 +110,7 @@ export const authApi = createApi({
       }),
     }),
 
-    // ================= LOGOUT =================
+    /* ================= LOGOUT ================= */
     logOut: builder.mutation<void, void>({
       query: () => ({
         url: "auth/logout",
@@ -99,7 +118,7 @@ export const authApi = createApi({
       }),
     }),
 
-    // ================= 2FA TOGGLE =================
+    /* ================= 2FA TOGGLE ================= */
     toggleTwoFactor: builder.mutation<
       TwoFactorToggleResponse,
       TwoFactorToggleData
@@ -112,6 +131,8 @@ export const authApi = createApi({
     }),
   }),
 });
+
+/* ================= EXPORT HOOKS ================= */
 
 export const {
   useRegisterMutation,
