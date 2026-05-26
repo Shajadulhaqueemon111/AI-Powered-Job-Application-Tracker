@@ -53,7 +53,7 @@ export interface TwoFactorToggleResponse {
 
 export const authApi = createApi({
   reducerPath: "authApi",
-
+  tagTypes: ["User"],
   baseQuery: fetchBaseQuery({
     baseUrl: process.env.NEXT_PUBLIC_BASE_API,
     credentials: "include",
@@ -92,7 +92,15 @@ export const authApi = createApi({
         body: loginData,
       }),
     }),
-
+    /* ================= GET ME ================= */
+    getMe: builder.query<{ success: boolean; data: { user: any } }, void>({
+      query: () => ({
+        url: `auth/me?_t=${Date.now()}`,
+        method: "GET",
+      }),
+      providesTags: ["User"],
+      keepUnusedDataFor: 0,
+    }),
     /* ================= VERIFY OTP ================= */
     verifyOtp: builder.mutation<AuthResponse, VerifyOtpData>({
       query: (otpData) => ({
@@ -128,6 +136,27 @@ export const authApi = createApi({
         method: "PATCH",
         body: data,
       }),
+      invalidatesTags: ["User"], // ✅ এটাই getMe refetch করবে
+      // onQueryStarted দিয়ে optimistic update করবো
+      async onQueryStarted({ enable }, { dispatch, queryFulfilled }) {
+        // ✅ Optimistic cache update — API শেষের আগেই UI update
+        const patchResult = dispatch(
+          authApi.util.updateQueryData("getMe", undefined, (draft) => {
+            if (draft?.data?.user) {
+              draft.data.user.twoFactorEnabled = enable;
+            }
+          }),
+        );
+
+        try {
+          await queryFulfilled;
+          // ✅ success — force fresh fetch, 304 bypass করবে
+          dispatch(authApi.util.invalidateTags(["User"]));
+        } catch {
+          // ❌ fail — optimistic update rollback
+          patchResult.undo();
+        }
+      },
     }),
   }),
 });
@@ -141,4 +170,5 @@ export const {
   useRefreshTokenMutation,
   useLogOutMutation,
   useToggleTwoFactorMutation,
+  useGetMeQuery,
 } = authApi;

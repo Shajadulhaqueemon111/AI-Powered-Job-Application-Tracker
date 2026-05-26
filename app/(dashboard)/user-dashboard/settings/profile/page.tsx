@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { toast } from "sonner"; // ✅ or your toast library
+import { toast } from "sonner";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,11 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useToggleTwoFactorMutation } from "@/app/redux/features/auth/authApi";
+
+import {
+  useToggleTwoFactorMutation,
+  useGetMeQuery,
+} from "@/app/redux/features/auth/authApi";
 
 type UserProps = {
   user: {
@@ -33,7 +37,7 @@ type UserProps = {
     phoneNumber?: string;
     address?: string;
     status?: string;
-    twoFactorEnabled?: boolean; // ✅
+    twoFactorEnabled?: boolean;
   } | null;
 };
 
@@ -47,10 +51,14 @@ export default function ProfileSettings({ user }: UserProps) {
     user?.profileImage || "https://i.pravatar.cc/300?img=12",
   );
 
-  // ✅ 2FA state & mutation
-  const [twoFactor, setTwoFactor] = useState(user?.twoFactorEnabled || false);
-  const [toggleTwoFactor, { isLoading: twoFactorLoading }] =
-    useToggleTwoFactorMutation();
+  // ✅ latest user data — refetch বাদ দেওয়া হয়েছে, invalidatesTags যথেষ্ট
+  const { data: meData } = useGetMeQuery();
+  const freshUser = meData?.data?.user || user;
+
+  // ✅ সরাসরি cache থেকে নাও — onQueryStarted optimistic update করে
+  const twoFactor = freshUser?.twoFactorEnabled ?? false;
+
+  const [toggleTwoFactor, { isLoading }] = useToggleTwoFactorMutation();
 
   const handleResumeUpload = (file: File | undefined) => {
     if (!file) return;
@@ -66,14 +74,21 @@ export default function ProfileSettings({ user }: UserProps) {
     setAvatar(URL.createObjectURL(file));
   };
 
-  // ✅ 2FA toggle handler
+  // ✅ fixed — optimistic state নেই, race condition নেই
   const handleTwoFactorToggle = async (checked: boolean) => {
     try {
       const res = await toggleTwoFactor({ enable: checked }).unwrap();
-      setTwoFactor(checked);
-      toast.success(res.message); // "Two-factor authentication enabled/disabled"
-    } catch {
-      toast.error("Failed to update 2FA settings");
+      toast.success(res?.message || "2FA updated successfully");
+      // onQueryStarted cache update করেছে
+      // invalidatesTags background-এ fresh data আনবে
+    } catch (error: unknown) {
+      let message = "Failed to update 2FA settings";
+      if (typeof error === "object" && error !== null && "data" in error) {
+        const err = error as { data?: { message?: string } };
+        message = err.data?.message || message;
+      }
+      toast.error(message);
+      // onQueryStarted এর patchResult.undo() automatically rollback করবে
     }
   };
 
@@ -101,24 +116,28 @@ export default function ProfileSettings({ user }: UserProps) {
                 <AvatarImage src={avatar} />
                 <AvatarFallback>EM</AvatarFallback>
               </Avatar>
+
               <button
                 onClick={() => avatarRef.current?.click()}
                 className="absolute bottom-1 right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-2 rounded-full shadow-lg hover:scale-105 transition"
               >
                 <Camera size={16} />
               </button>
+
               <div className="absolute inset-0 rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition" />
             </div>
 
             <div>
-              <h2 className="font-bold text-lg">{user?.name || "John Doe"}</h2>
+              <h2 className="font-bold text-lg">
+                {freshUser?.name || "John Doe"}
+              </h2>
               <p className="text-sm text-zinc-500 flex items-center gap-1">
                 <Mail size={14} />
-                {user?.email || "user@email.com"}
+                {freshUser?.email || "user@email.com"}
               </p>
-              {user?.status && (
+              {freshUser?.status && (
                 <Badge className="mt-2 bg-green-500/10 text-green-500 border-green-500/20">
-                  {user.status}
+                  {freshUser.status}
                 </Badge>
               )}
             </div>
@@ -144,23 +163,28 @@ export default function ProfileSettings({ user }: UserProps) {
                 </div>
                 <h2 className="font-semibold text-lg">Profile Information</h2>
               </div>
+
               <Input
                 placeholder="Your Full Name"
-                defaultValue={user?.name || ""}
+                defaultValue={freshUser?.name || ""}
               />
               <Input
                 placeholder="Email Address"
-                defaultValue={user?.email || ""}
+                defaultValue={freshUser?.email || ""}
               />
               <Input
                 placeholder="Phone Number"
-                defaultValue={user?.phoneNumber || ""}
+                defaultValue={freshUser?.phoneNumber || ""}
               />
-              <Input placeholder="Address" defaultValue={user?.address || ""} />
+              <Input
+                placeholder="Address"
+                defaultValue={freshUser?.address || ""}
+              />
               <Input
                 placeholder="Your Skills (React, Next.js)"
-                defaultValue={user?.skills?.join(", ") || ""}
+                defaultValue={freshUser?.skills?.join(", ") || ""}
               />
+
               <Button className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 text-white font-medium shadow-lg hover:scale-[1.01] transition">
                 Save Profile
               </Button>
@@ -177,21 +201,35 @@ export default function ProfileSettings({ user }: UserProps) {
                 <h2 className="font-semibold text-lg">Security Settings</h2>
               </div>
 
-              {/* ✅ 2FA TOGGLE */}
-              <div className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-                <div>
-                  <p className="font-medium">Two-Factor Authentication</p>
-                  <p className="text-sm text-zinc-500">
+              {/* 2FA */}
+              <div className="group flex items-center justify-between rounded-2xl border border-zinc-200/70 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="space-y-1">
+                  <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                    Two-Factor Authentication
+                  </p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        twoFactor ? "bg-green-500" : "bg-red-500"
+                      }`}
+                    />
                     {twoFactor
-                      ? "🟢 Enabled — OTP required on login"
-                      : "🔴 Disabled — Login without OTP"}
+                      ? "Enabled — OTP required on login"
+                      : "Disabled — Login without OTP"}
                   </p>
                 </div>
-                <Switch
-                  checked={twoFactor}
-                  onCheckedChange={handleTwoFactorToggle}
-                  disabled={twoFactorLoading}
-                />
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {twoFactor ? "ON" : "OFF"}
+                  </span>
+                  <Switch
+                    checked={twoFactor}
+                    onCheckedChange={handleTwoFactorToggle}
+                    disabled={isLoading}
+                    className="data-[state=checked]:bg-green-500"
+                  />
+                </div>
               </div>
 
               <Input type="password" placeholder="New Password" />
@@ -261,6 +299,7 @@ export default function ProfileSettings({ user }: UserProps) {
                 </div>
                 <h2 className="font-semibold text-lg">Notification Settings</h2>
               </div>
+
               <div className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
                 <span>Email Alerts</span>
                 <Switch defaultChecked />
@@ -285,13 +324,16 @@ export default function ProfileSettings({ user }: UserProps) {
                 </div>
                 <h2 className="font-semibold text-lg">AI Career Insight</h2>
               </div>
+
               <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
                 Your profile is 78% optimized for recruiters. Add more projects,
                 skills, and certifications to increase your interview rate.
               </p>
+
               <div className="w-full h-3 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
                 <div className="h-full w-[78%] bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 rounded-full" />
               </div>
+
               <Button className="w-full bg-gradient-to-r from-blue-500 via-cyan-500 to-purple-500 text-white rounded-xl">
                 Improve My Profile
               </Button>
