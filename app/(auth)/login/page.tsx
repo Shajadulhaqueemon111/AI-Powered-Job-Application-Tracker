@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+
 import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 
@@ -19,6 +19,7 @@ import {
 } from "@/app/redux/features/auth/authApi";
 
 import { Spinner } from "@/components/ui/spinner";
+import toast from "react-hot-toast";
 
 type FormData = {
   email: string;

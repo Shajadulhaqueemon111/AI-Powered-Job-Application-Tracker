@@ -43,8 +43,9 @@ import {
 } from "@/components/ui/popover";
 
 import { Calendar } from "@/components/ui/calendar";
-import { useCreateJobMutation } from "../api/create-job-api";
+
 import { useState } from "react";
+import { useCreateJobMutation } from "@/app/redux/features/jobs/jobs-api";
 
 /* ================= RTK QUERY ================= */
 
