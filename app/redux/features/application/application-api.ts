@@ -13,7 +13,7 @@ export const applicationApi = createApi({
   endpoints: (builder) => ({
     createApplication: builder.mutation({
       query: (applicationData) => ({
-        url: "/applications/create-application",
+        url: "applications/create-application",
         method: "POST",
         body: applicationData,
       }),
@@ -21,28 +21,28 @@ export const applicationApi = createApi({
     }),
     getApplications: builder.query({
       query: () => ({
-        url: "/applications",
+        url: "applications",
         method: "GET",
       }),
       providesTags: ["Application"],
     }),
     updateApplication: builder.mutation({
       query: (id) => ({
-        url: `/applications/${id}`,
+        url: `applications/${id}`,
         method: "patch",
       }),
       invalidatesTags: ["Application"],
     }),
     deleteApplication: builder.mutation({
       query: (id) => ({
-        url: `/applications/${id}`,
+        url: `applications/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: ["Application"],
     }),
     getMyApplications: builder.query({
       query: (email) => ({
-        url: `/applications/my-applications?email=${email}`,
+        url: `applications/my-applications?email=${email}`,
         method: "GET",
       }),
       providesTags: ["Application"],
