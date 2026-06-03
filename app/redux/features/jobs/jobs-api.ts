@@ -13,7 +13,7 @@ export const jobApi = createApi({
   endpoints: (builder) => ({
     createJob: builder.mutation({
       query: (jobData) => ({
-        url: "/jobs/create-job",
+        url: "jobs/create-job",
         method: "POST",
         body: jobData,
       }),
@@ -21,24 +21,24 @@ export const jobApi = createApi({
     }),
     getJobs: builder.query({
       query: () => ({
-        url: "/jobs",
+        url: "jobs",
         method: "GET",
       }),
       providesTags: ["Job"],
     }),
-    updateJob: builder.query({
+    updateJob: builder.mutation({
       query: (id) => ({
-        url: `/jobs/${id}`,
+        url: `jobs/${id}`,
         method: "patch",
       }),
-      providesTags: ["Job"],
+      invalidatesTags: ["Job"],
     }),
-    deleteJob: builder.query({
+    deleteJob: builder.mutation({
       query: (id) => ({
-        url: `/jobs/${id}`,
+        url: `jobs/${id}`,
         method: "DELETE",
       }),
-      providesTags: ["Job"],
+      invalidatesTags: ["Job"],
     }),
   }),
 });
@@ -46,6 +46,6 @@ export const jobApi = createApi({
 export const {
   useCreateJobMutation,
   useGetJobsQuery,
-  useUpdateJobQuery,
-  useDeleteJobQuery,
+  useUpdateJobMutation,
+  useDeleteJobMutation,
 } = jobApi;
