@@ -79,8 +79,6 @@ export default function ProfileSettings({ user }: UserProps) {
     try {
       const res = await toggleTwoFactor({ enable: checked }).unwrap();
       toast.success(res?.message || "2FA updated successfully");
-      // onQueryStarted cache update করেছে
-      // invalidatesTags background-এ fresh data আনবে
     } catch (error: unknown) {
       let message = "Failed to update 2FA settings";
       if (typeof error === "object" && error !== null && "data" in error) {

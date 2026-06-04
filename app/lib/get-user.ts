@@ -18,6 +18,7 @@ export async function getUser() {
       name: payload.name as string,
       email: payload.email as string,
       role: payload.role as string,
+      status: payload.status as string,
       profileImage: (payload.profileImage as string) || "/avatar.jpg",
       phoneNumber:
         typeof payload.phoneNumber === "string"

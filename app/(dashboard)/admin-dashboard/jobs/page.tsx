@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import JobHeader from "./components/JobHeader";
-import JobFilters from "./components/JobFilters";
+// import JobFilters from "./components/JobFilters";
 import JobStats from "./components/JobStats";
 import JobTable from "./components/JobTable";
 
@@ -13,7 +13,7 @@ export default function JobsPage() {
   return (
     <div className="p-6 space-y-6">
       <JobHeader />
-      <JobFilters />
+      {/* <JobFilters /> */}
       <JobStats />
       <JobTable />
     </div>

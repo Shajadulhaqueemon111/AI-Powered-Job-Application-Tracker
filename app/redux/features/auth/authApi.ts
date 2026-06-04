@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { AuditLog } from "@/app/(dashboard)/admin-dashboard/audit-logs/type";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 /* ================= TYPES ================= */
@@ -18,7 +19,9 @@ export interface VerifyOtpData {
   email: string;
   otp: string;
 }
-
+export interface AuditLogResponse {
+  data: AuditLog[];
+}
 export interface AuthResponse {
   success: boolean;
   message: string;
@@ -33,6 +36,10 @@ export interface AuthResponse {
       name: string;
       email: string;
       role: string;
+      status: string;
+      profileImage: string;
+      phoneNumber?: string;
+      address?: string;
     };
   };
 }
@@ -58,7 +65,6 @@ export const authApi = createApi({
     baseUrl: process.env.NEXT_PUBLIC_BASE_API,
     credentials: "include",
 
-    // 🔥 IMPORTANT FIX (production 401 solve)
     prepareHeaders: (headers, { getState }) => {
       const token =
         (getState() as any).auth?.token ||
@@ -117,6 +123,12 @@ export const authApi = createApi({
         method: "POST",
       }),
     }),
+    getAuditLogs: builder.query<AuditLogResponse, void>({
+      query: () => ({
+        url: "auth/audit-logs",
+        method: "GET",
+      }),
+    }),
 
     /* ================= LOGOUT ================= */
     logOut: builder.mutation<void, void>({
@@ -149,7 +161,7 @@ export const authApi = createApi({
 
         try {
           await queryFulfilled;
-          // ✅ success — force fresh fetch, 304 bypass করবে
+
           dispatch(authApi.util.invalidateTags(["User"]));
         } catch {
           patchResult.undo();
@@ -167,6 +179,7 @@ export const {
   useVerifyOtpMutation,
   useRefreshTokenMutation,
   useLogOutMutation,
+  useGetAuditLogsQuery,
   useToggleTwoFactorMutation,
   useGetMeQuery,
 } = authApi;

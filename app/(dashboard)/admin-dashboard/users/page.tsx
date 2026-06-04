@@ -1,44 +1,114 @@
-import { Metadata } from "next";
-import { columns, UserData } from "./columns";
-import { DataTable } from "./data-table";
-export const metadata: Metadata = {
-  title: "Users Page",
-  description: "Manage and view all users data in table format",
-};
-const data: UserData[] = [
-  {
-    id: 1,
-    header: "Dashboard Section",
-    type: "Table of Contents",
-    status: "Done",
-    target: "100",
-    limit: "200",
-    reviewer: "Eddie Lake",
-  },
-  {
-    id: 2,
-    header: "Analytics",
-    type: "Technical Approach",
-    status: "In Progress",
-    target: "80",
-    limit: "150",
-    reviewer: "Jamik Tashpulatov",
-  },
-  {
-    id: 3,
-    header: "User Panel",
-    type: "Executive Summary",
-    status: "Not Started",
-    target: "60",
-    limit: "120",
-    reviewer: "Assign reviewer",
-  },
-];
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
 
-export default function usersPage() {
+import { useState } from "react";
+import {
+  useGetUsersQuery,
+  useUpdateUserMutation,
+  useDeleteUserMutation,
+} from "@/app/redux/features/users/users-api";
+
+import { DataTable } from "./data-table";
+import { getColumns } from "./columns";
+import { EditUserDialog } from "./edit-user";
+import { DeleteUserDialog } from "./delete-user";
+import toast from "react-hot-toast";
+import { DataTableSkeleton } from "./skeliton";
+
+export default function UsersPage() {
+  const { data, isLoading, isError } = useGetUsersQuery(undefined);
+
+  const [updateUser] = useUpdateUserMutation();
+  const [deleteUser] = useDeleteUserMutation();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  const [formData, setFormData] = useState({
+    name: "",
+    role: "",
+    status: "",
+  });
+
+  if (isLoading)
+    return (
+      <div>
+        <DataTableSkeleton />
+      </div>
+    );
+  if (isError) return <div>Failed to load users</div>;
+
+  const users = data?.data || [];
+
+  // 👉 Edit click
+  const handleEdit = (user: any) => {
+    setSelectedUser(user);
+    setFormData({
+      name: user.name,
+      role: user.role,
+      status: user.status,
+    });
+    setEditOpen(true);
+  };
+
+  // 👉 Delete click
+  const handleDelete = (user: any) => {
+    setSelectedUser(user);
+    setDeleteOpen(true);
+  };
+
+  // 👉 Update submit
+  const handleUpdate = async () => {
+    if (!selectedUser?._id) {
+      toast.error("No user selected");
+      return;
+    }
+
+    try {
+      await updateUser({
+        id: selectedUser._id,
+        data: formData,
+      }).unwrap();
+
+      toast.success("User updated successfully ✅");
+      setEditOpen(false);
+    } catch (error) {
+      toast.error("Failed to update user ");
+    }
+  };
+  // 👉 Confirm delete
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteUser(selectedUser._id).unwrap();
+
+      toast.success("User deleted successfully 🗑️");
+      setDeleteOpen(false);
+    } catch (error) {
+      toast.error("Failed to delete user ");
+    }
+  };
+
   return (
     <div className="container mx-auto py-10">
-      <DataTable columns={columns} data={data} />
+      <DataTable columns={getColumns(handleEdit, handleDelete)} data={users} />
+
+      {/* EDIT MODAL */}
+      <EditUserDialog
+        open={editOpen}
+        setOpen={setEditOpen}
+        formData={formData}
+        setFormData={setFormData}
+        onSubmit={handleUpdate}
+      />
+
+      {/* DELETE MODAL */}
+      <DeleteUserDialog
+        open={deleteOpen}
+        setOpen={setDeleteOpen}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

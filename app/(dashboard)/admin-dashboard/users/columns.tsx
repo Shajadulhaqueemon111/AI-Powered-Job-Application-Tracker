@@ -1,46 +1,77 @@
-"use client";
-
 import { ColumnDef } from "@tanstack/react-table";
+import { Button } from "@/components/ui/button";
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
 export type UserData = {
-  id: number;
-  header: string;
-  type: string;
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
   status: string;
-  target: string;
-  limit: string;
-  reviewer: string;
+  loginAttempts: number;
+  createdAt: string;
 };
 
-export const columns: ColumnDef<UserData>[] = [
+export const getColumns = (
+  onEdit: (user: UserData) => void,
+  onDelete: (user: UserData) => void,
+): ColumnDef<UserData>[] => [
   {
-    accessorKey: "id",
-    header: "ID",
+    accessorKey: "name",
+    header: "Name",
   },
   {
-    accessorKey: "header",
-    header: "Header",
+    accessorKey: "email",
+    header: "Email",
   },
   {
-    accessorKey: "type",
-    header: "Type",
+    accessorKey: "role",
+    header: "Role",
   },
   {
     accessorKey: "status",
     header: "Status",
+    cell: ({ row }) => (
+      <span
+        className={`px-2 py-1 rounded text-xs font-medium ${
+          row.original.status === "active"
+            ? "bg-green-100 text-green-700"
+            : "bg-red-100 text-red-700"
+        }`}
+      >
+        {row.original.status}
+      </span>
+    ),
   },
   {
-    accessorKey: "target",
-    header: "Target",
+    accessorKey: "loginAttempts",
+    header: "Login Attempts",
   },
   {
-    accessorKey: "limit",
-    header: "Limit",
+    accessorKey: "createdAt",
+    header: "Created At",
+    cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
   },
   {
-    accessorKey: "reviewer",
-    header: "Reviewer",
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => {
+      const user = row.original;
+
+      return (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => onEdit(user)}>
+            Edit
+          </Button>
+
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => onDelete(user)}
+          >
+            Delete
+          </Button>
+        </div>
+      );
+    },
   },
 ];

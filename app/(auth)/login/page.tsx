@@ -88,7 +88,12 @@ export default function LoginPage() {
       setLoading(true);
 
       const res = await loginUser(data).unwrap();
+      const user = res?.data?.user;
 
+      if (user?.status === "blocked") {
+        toast.error("Your account has been blocked 🚫");
+        return;
+      }
       /**
        * 🔥 IMPORTANT FIX:
        * backend must return:
@@ -152,7 +157,14 @@ export default function LoginPage() {
         email: userEmail,
         otp,
       }).unwrap();
-
+      const user = res?.data?.user;
+      if (user?.status === "blocked") {
+        toast.error("Your account has been blocked 🚫");
+        setShowOtpModal(false);
+        setTimerActive(false);
+        setAuthStep("login");
+        return;
+      }
       const token = res?.data?.accessToken;
 
       if (!token) {

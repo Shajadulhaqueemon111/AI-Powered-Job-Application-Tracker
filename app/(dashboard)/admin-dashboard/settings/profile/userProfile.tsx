@@ -16,12 +16,12 @@ import {
   Shield,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
 
 import {
   useToggleTwoFactorMutation,
   useGetMeQuery,
 } from "@/app/redux/features/auth/authApi";
+import toast from "react-hot-toast";
 
 type UserProfileProps = {
   user: {
@@ -46,7 +46,6 @@ export default function UserProfile({ user }: UserProfileProps) {
   const [toggleTwoFactor, { isLoading: twoFactorLoading }] =
     useToggleTwoFactorMutation();
 
-  // ✅ fixed — local state নেই, race condition নেই
   const handleTwoFactorToggle = async (checked: boolean) => {
     try {
       const res = await toggleTwoFactor({ enable: checked }).unwrap();

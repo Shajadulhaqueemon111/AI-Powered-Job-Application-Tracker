@@ -8,6 +8,7 @@ import {
   Settings2Icon,
   CircleHelpIcon,
   DatabaseIcon,
+  LockKeyhole,
 } from "lucide-react";
 
 // ADMIN
@@ -34,6 +35,11 @@ export const adminSidebar = {
       title: "AI Usage",
       url: "/admin-dashboard/ai-usages",
       icon: <DatabaseIcon />,
+    },
+    {
+      title: "Audit Logs",
+      url: "/admin-dashboard/audit-logs",
+      icon: <LockKeyhole />,
     },
   ],
   navSecondary: [
