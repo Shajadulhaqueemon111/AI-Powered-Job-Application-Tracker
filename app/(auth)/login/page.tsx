@@ -114,7 +114,7 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ accessToken: token }),
         });
-
+        localStorage.setItem("accessToken", token);
         const decoded: any = jwtDecode(token);
         const role = decoded?.role;
 
@@ -165,7 +165,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessToken: token }),
       });
-
+      localStorage.setItem("accessToken", token);
       const decoded: any = jwtDecode(token);
       const role = decoded?.role;
 

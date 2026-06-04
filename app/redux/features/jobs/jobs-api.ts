@@ -1,11 +1,26 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 export const jobApi = createApi({
   reducerPath: "jobApi",
 
   baseQuery: fetchBaseQuery({
-    baseUrl: `${process.env.NEXT_PUBLIC_BASE_API}`,
+    baseUrl: process.env.NEXT_PUBLIC_BASE_API,
     credentials: "include",
+
+    prepareHeaders: (headers, { getState }) => {
+      const token =
+        (getState() as any).auth?.token ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("accessToken")
+          : null);
+      console.log("Token in jobApi:", token);
+      if (token) {
+        headers.set("authorization", `${token}`);
+      }
+
+      return headers;
+    },
   }),
 
   tagTypes: ["Job"],

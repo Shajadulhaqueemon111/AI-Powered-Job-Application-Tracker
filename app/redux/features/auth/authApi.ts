@@ -67,7 +67,7 @@ export const authApi = createApi({
           : null);
 
       if (token) {
-        headers.set("authorization", `Bearer ${token}`);
+        headers.set("authorization", `${token}`);
       }
 
       return headers;
@@ -139,7 +139,6 @@ export const authApi = createApi({
       invalidatesTags: ["User"], // ✅ এটাই getMe refetch করবে
       // onQueryStarted দিয়ে optimistic update করবো
       async onQueryStarted({ enable }, { dispatch, queryFulfilled }) {
-        // ✅ Optimistic cache update — API শেষের আগেই UI update
         const patchResult = dispatch(
           authApi.util.updateQueryData("getMe", undefined, (draft) => {
             if (draft?.data?.user) {
@@ -153,7 +152,6 @@ export const authApi = createApi({
           // ✅ success — force fresh fetch, 304 bypass করবে
           dispatch(authApi.util.invalidateTags(["User"]));
         } catch {
-          // ❌ fail — optimistic update rollback
           patchResult.undo();
         }
       },
