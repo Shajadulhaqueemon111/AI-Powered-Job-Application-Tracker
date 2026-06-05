@@ -35,7 +35,7 @@ export const applicationApi = createApi({
     }),
     getApplications: builder.query({
       query: () => ({
-        url: "applications",
+        url: "applications/my-applications",
         method: "GET",
       }),
       providesTags: ["Application"],
@@ -55,8 +55,15 @@ export const applicationApi = createApi({
       invalidatesTags: ["Application"],
     }),
     getMyApplications: builder.query({
-      query: (email) => ({
-        url: `applications/my-applications?email=${email}`,
+      query: (userId) => ({
+        url: `applications/my-applications?userId=${userId}`,
+        method: "GET",
+      }),
+      providesTags: ["Application"],
+    }),
+    getMyAllApplications: builder.query({
+      query: (userId) => ({
+        url: `applications/my-all-applications?userId=${userId}`,
         method: "GET",
       }),
       providesTags: ["Application"],
@@ -70,4 +77,5 @@ export const {
   useUpdateApplicationMutation,
   useDeleteApplicationMutation,
   useGetMyApplicationsQuery,
+  useGetMyAllApplicationsQuery,
 } = applicationApi;

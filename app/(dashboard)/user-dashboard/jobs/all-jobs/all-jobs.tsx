@@ -28,6 +28,7 @@ import {
 } from "@/app/redux/features/application/application-api";
 import { useAppSelector } from "@/app/redux/hooks";
 import { useGetMeQuery } from "@/app/redux/features/auth/authApi";
+import { JobCardSkeleton } from "./skeliton";
 
 // ─── API Response Types ──────────────────────────────────────────────
 type ApiJob = {
@@ -125,10 +126,10 @@ export default function AllJobsWithDrawer() {
   const [agreed, setAgreed] = React.useState(false);
 
   const { data: meData } = useGetMeQuery();
-  const userEmail = meData?.data?.user?.email ?? "";
-
-  const { data: applications } = useGetMyApplicationsQuery(userEmail, {
-    skip: !userEmail,
+  const userId = meData?.data?.user?._id ?? "";
+  console.log("Current User ID:", userId);
+  const { data: applications } = useGetMyApplicationsQuery(userId, {
+    skip: !userId,
   });
 
   console.log("My Applications:", applications);
@@ -218,12 +219,7 @@ export default function AllJobsWithDrawer() {
   // ── Loading / Error States ──────────────────────────────────────────
   const renderState = () => {
     if (isLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center py-24 gap-4 text-gray-400">
-          <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-          <p className="text-sm"> jobs…</p>
-        </div>
-      );
+      return <JobCardSkeleton />;
     }
     if (isError) {
       return (

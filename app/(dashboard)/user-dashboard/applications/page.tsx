@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import ApplicationsPage from "./new/new-application";
+import ApplicationClient from "./get-applicationdata";
+
+// import ApplicationsPage from "./new/new-application";
 
 export const metadata: Metadata = {
   title: "My Applications - Job Tracker",
@@ -8,5 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <ApplicationsPage />;
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">My Applications</h1>
+      <ApplicationClient />
+    </div>
+  );
 }
