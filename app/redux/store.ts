@@ -4,6 +4,7 @@ import { jobApi } from "./features/jobs/jobs-api";
 import authReducer from "./features/auth/authSlice"; //
 import { applicationApi } from "./features/application/application-api";
 import { userApi } from "./features/users/users-api";
+import { notificationApi } from "./features/notification/notification";
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     [userApi.reducerPath]: userApi.reducer,
     [jobApi.reducerPath]: jobApi.reducer,
     [applicationApi.reducerPath]: applicationApi.reducer,
+    [notificationApi.reducerPath]: notificationApi.reducer,
   },
 
   middleware: (getDefaultMiddleware) =>
@@ -20,6 +22,7 @@ export const store = configureStore({
       userApi.middleware,
       jobApi.middleware,
       applicationApi.middleware,
+      notificationApi.middleware,
     ),
 });
 

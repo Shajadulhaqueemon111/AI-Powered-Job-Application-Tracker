@@ -1,18 +1,21 @@
 let audio: HTMLAudioElement | null = null;
-let unlocked = false;
 
 export function playNotificationSound() {
   if (typeof window === "undefined") return;
 
-  audio = new Audio("/audio.mp3");
-  audio.volume = 0.7;
+  if (!audio) {
+    audio = new Audio("/audio.mp3"); // ✅ must be in /public
+    audio.volume = 0.7;
+    audio.preload = "auto";
+  }
 
-  audio
-    .play()
-    .then(() => {
-      unlocked = true;
-    })
-    .catch(() => {
-      unlocked = false;
+  audio.currentTime = 0;
+
+  const playPromise = audio.play();
+
+  if (playPromise !== undefined) {
+    playPromise.catch((err) => {
+      console.log("Audio blocked by browser:", err);
     });
+  }
 }

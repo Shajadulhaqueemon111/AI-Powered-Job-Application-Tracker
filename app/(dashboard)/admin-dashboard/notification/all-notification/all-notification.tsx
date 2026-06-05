@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import * as React from "react";
@@ -6,38 +8,56 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-type Notification = {
-  id: number;
-  title: string;
-  time: string;
-  isRead: boolean;
-};
+import {
+  useGetNotificationsQuery,
+  useMarkAsReadMutation,
+} from "@/app/redux/features/notification/notification";
 
-const notifications: Notification[] = [
-  {
-    id: 1,
-    title: "New user registered",
-    time: "2 min ago",
-    isRead: false,
-  },
-  {
-    id: 2,
-    title: "Server backup completed",
-    time: "10 min ago",
-    isRead: true,
-  },
-  {
-    id: 3,
-    title: "New report submitted",
-    time: "1 hour ago",
-    isRead: false,
-  },
-];
+import { playNotificationSound } from "@/app/(dashboard)/user-dashboard/lib/sound";
 
 export default function NotificationDropdown() {
   const [open, setOpen] = React.useState(false);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // GET notifications
+  const { data, isLoading } = useGetNotificationsQuery(undefined, {
+    pollingInterval: 10000,
+  });
+
+  const notifications = data?.data || [];
+
+  // MARK AS READ
+  const [markAsRead] = useMarkAsReadMutation();
+
+  const unreadCount = notifications.filter((n: any) => !n.read).length;
+
+  // refs for detecting new notifications
+  const prevIdsRef = React.useRef<string[]>([]);
+  const prevCountRef = React.useRef(0);
+
+  // 🔊 SOUND EFFECT (FIXED)
+  React.useEffect(() => {
+    const currentIds = notifications.map((n: any) => n._id);
+
+    const hasNewById = currentIds.length > prevIdsRef.current.length;
+
+    const hasNewByCount = notifications.length > prevCountRef.current;
+
+    if (hasNewById || hasNewByCount) {
+      playNotificationSound(); // 🔊 PLAY SOUND
+    }
+
+    prevIdsRef.current = currentIds;
+    prevCountRef.current = notifications.length;
+  }, [notifications]);
+
+  // mark single notification as read
+  const handleRead = async (id: string) => {
+    try {
+      await markAsRead(id).unwrap();
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
   return (
     <div className="relative">
@@ -50,7 +70,7 @@ export default function NotificationDropdown() {
       >
         <Bell className="w-5 h-5" />
 
-        {/* RED BADGE */}
+        {/* BADGE */}
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 h-4 w-4 text-[10px] bg-red-500 text-white rounded-full flex items-center justify-center">
             {unreadCount}
@@ -68,34 +88,54 @@ export default function NotificationDropdown() {
             </span>
           </div>
 
+          {/* LOADING */}
+          {isLoading && (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          )}
+
+          {/* LIST */}
           <div className="space-y-2 max-h-64 overflow-auto">
-            {notifications.map((n) => (
+            {notifications.map((n: any) => (
               <div
-                key={n.id}
-                className={`p-2 rounded-lg border flex items-start justify-between gap-2 ${
-                  n.isRead ? "bg-muted/30" : "bg-primary/10"
+                key={n._id}
+                onClick={() => handleRead(n._id)}
+                className={`p-2 rounded-lg border flex items-start justify-between gap-2 cursor-pointer ${
+                  n.read ? "bg-muted/30" : "bg-primary/10"
                 }`}
               >
                 <div>
                   <p className="text-sm font-medium">{n.title}</p>
-                  <p className="text-xs text-muted-foreground">{n.time}</p>
+                  <p className="text-xs text-muted-foreground">{n.message}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(n.createdAt).toLocaleString()}
+                  </p>
                 </div>
 
                 <Badge
                   className={
-                    n.isRead
+                    n.read
                       ? "bg-green-500/20 text-green-400"
                       : "bg-yellow-500/20 text-yellow-400"
                   }
                 >
-                  {n.isRead ? "Read" : "Unread"}
+                  {n.read ? "Read" : "Unread"}
                 </Badge>
               </div>
             ))}
           </div>
 
-          {/* FOOTER */}
-          <Button variant="outline" className="w-full mt-3">
+          {/* MARK ALL */}
+          <Button
+            variant="outline"
+            className="w-full mt-3"
+            onClick={() => {
+              notifications.forEach((n: any) => {
+                if (!n.read) {
+                  handleRead(n._id);
+                }
+              });
+            }}
+          >
             Mark all as read
           </Button>
         </Card>

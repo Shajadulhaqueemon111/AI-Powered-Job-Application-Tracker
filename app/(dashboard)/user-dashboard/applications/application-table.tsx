@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import * as React from "react";
@@ -59,18 +60,37 @@ export default function MyApplicationsTable({
 }) {
   const [globalFilter, setGlobalFilter] = React.useState("");
   const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
+
   const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       toast.success("Website copied!");
-    } catch (err) {
+    } catch {
       toast.error("Copy failed!");
     }
   };
+
+  // ✅ CUSTOM GLOBAL SEARCH LOGIC (IMPORTANT FIX)
+  const globalFilterFn = React.useCallback(
+    (row: any, _columnId: string, filterValue: string) => {
+      const search = filterValue.toLowerCase();
+
+      const job = row.original.jobId;
+
+      return (
+        row.original.fullName?.toLowerCase().includes(search) ||
+        row.original.email?.toLowerCase().includes(search) ||
+        row.original.phone?.toLowerCase().includes(search) ||
+        job?.title?.toLowerCase().includes(search) ||
+        job?.company?.name?.toLowerCase().includes(search)
+      );
+    },
+    [],
+  );
+
   const table = useReactTable({
     data,
     columns: [
-      // 🧑 JOB
       {
         header: "Job",
         cell: ({ row }) => {
@@ -95,12 +115,11 @@ export default function MyApplicationsTable({
                 <p className="font-semibold">{job.title}</p>
                 <p className="text-xs text-muted-foreground">{company.name}</p>
 
-                {/* 🔥 OPEN FULL JOB MODAL */}
                 <button
                   onClick={() => setSelectedJob(job)}
                   className="text-xs text-blue-600 underline mt-1 cursor-pointer"
                 >
-                  View Company & Job Details
+                  View Details
                 </button>
               </div>
             </div>
@@ -108,7 +127,6 @@ export default function MyApplicationsTable({
         },
       },
 
-      // 👤 Applicant
       {
         header: "Applicant",
         cell: ({ row }) => (
@@ -121,13 +139,11 @@ export default function MyApplicationsTable({
         ),
       },
 
-      // 📞 Phone
       {
         accessorKey: "phone",
         header: "Phone",
       },
 
-      // 🎯 Status
       {
         accessorKey: "status",
         header: "Status",
@@ -150,7 +166,6 @@ export default function MyApplicationsTable({
         },
       },
 
-      // 📅 Date
       {
         accessorKey: "createdAt",
         header: "Applied",
@@ -158,28 +173,25 @@ export default function MyApplicationsTable({
           new Date(row.getValue("createdAt")).toLocaleDateString(),
       },
 
-      // 📄 Resume
       {
         header: "Resume",
         cell: ({ row }) => {
           const handleDownload = async (url: string) => {
             try {
-              const response = await fetch(url);
-              const blob = await response.blob();
+              const res = await fetch(url);
+              const blob = await res.blob();
 
               const link = document.createElement("a");
-              const objectUrl = window.URL.createObjectURL(blob);
+              const objectUrl = URL.createObjectURL(blob);
 
               link.href = objectUrl;
               link.download = "resume.pdf";
-              document.body.appendChild(link);
               link.click();
 
-              link.remove();
-              window.URL.revokeObjectURL(objectUrl);
+              URL.revokeObjectURL(objectUrl);
 
-              toast.success("Resume downloading...");
-            } catch (err) {
+              toast.success("Downloading...");
+            } catch {
               toast.error("Download failed!");
             }
           };
@@ -187,7 +199,7 @@ export default function MyApplicationsTable({
           return (
             <button
               onClick={() => handleDownload(row.original.resumeUrl)}
-              className="text-blue-600 underline text-sm cursor-pointer hover:text-blue-800 transition"
+              className="text-blue-600 underline text-sm"
             >
               View / Download
             </button>
@@ -206,6 +218,8 @@ export default function MyApplicationsTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
 
+    globalFilterFn, // ✅ IMPORTANT FIX
+
     initialState: {
       pagination: {
         pageSize: 5,
@@ -215,15 +229,15 @@ export default function MyApplicationsTable({
 
   return (
     <div className="space-y-4">
-      {/* 🔍 SEARCH */}
+      {/* 🔍 SEARCH INPUT (FIXED PLACEHOLDER) */}
       <Input
-        placeholder="Search applications..."
+        placeholder="Search by name, email, phone, job title, company..."
         value={globalFilter}
         onChange={(e) => setGlobalFilter(e.target.value)}
         className="max-w-sm"
       />
 
-      {/* 📋 TABLE */}
+      {/* TABLE */}
       <div className="border rounded-md">
         <Table>
           <TableHeader>
@@ -266,7 +280,7 @@ export default function MyApplicationsTable({
         </Table>
       </div>
 
-      {/* 📄 PAGINATION */}
+      {/* PAGINATION */}
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
@@ -289,6 +303,7 @@ export default function MyApplicationsTable({
         </Button>
       </div>
 
+      {/* MODAL */}
       {/* 🧾 JOB FULL DETAILS MODAL */}
       {selectedJob && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">

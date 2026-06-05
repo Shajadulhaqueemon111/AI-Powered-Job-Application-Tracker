@@ -74,7 +74,6 @@ export default function ProfileSettings({ user }: UserProps) {
     setAvatar(URL.createObjectURL(file));
   };
 
-  // ✅ fixed — optimistic state নেই, race condition নেই
   const handleTwoFactorToggle = async (checked: boolean) => {
     try {
       const res = await toggleTwoFactor({ enable: checked }).unwrap();
