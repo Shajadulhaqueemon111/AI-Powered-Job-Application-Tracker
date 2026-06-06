@@ -20,7 +20,7 @@ export const hrSidebar = {
     },
     {
       title: "Job Posts",
-      url: "/hr-dashboard/jobs",
+      url: "/hr-dashboard/gelt-all-jobs",
       icon: <BriefcaseIcon />,
     },
     {

@@ -34,16 +34,25 @@ export const applicationApi = createApi({
       invalidatesTags: ["Application"],
     }),
     getApplications: builder.query({
-      query: () => ({
-        url: "applications/my-applications",
-        method: "GET",
-      }),
-      providesTags: ["Application"],
+      query: ({ hrId, search, status, page }) => {
+        const params = new URLSearchParams();
+
+        if (hrId) params.append("hrId", hrId);
+        if (search) params.append("search", search);
+        if (status) params.append("status", status);
+        if (page) params.append("page", page);
+
+        return {
+          url: `applications?${params.toString()}`,
+          method: "GET",
+        };
+      },
     }),
     updateApplication: builder.mutation({
-      query: (id) => ({
+      query: ({ id, status }: { id: string; status: string }) => ({
         url: `applications/${id}`,
-        method: "patch",
+        method: "PATCH",
+        body: { status },
       }),
       invalidatesTags: ["Application"],
     }),

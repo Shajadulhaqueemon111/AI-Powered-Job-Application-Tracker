@@ -14,16 +14,20 @@ import {
 } from "@/app/redux/features/notification/notification";
 
 import { playNotificationSound } from "@/app/(dashboard)/user-dashboard/lib/sound";
+import { useGetMeQuery } from "@/app/redux/features/auth/authApi";
 
 export default function NotificationDropdown() {
   const [open, setOpen] = React.useState(false);
-
+  const { data: getme } = useGetMeQuery();
+  const userId = getme?.data?.user?._id;
   // GET notifications
-  const { data, isLoading } = useGetNotificationsQuery(undefined, {
+  const { data, isLoading } = useGetNotificationsQuery(userId, {
     pollingInterval: 10000,
   });
 
-  const notifications = data?.data || [];
+  const notifications = (data?.data || []).filter(
+    (notification: any) => !notification.read,
+  );
 
   // MARK AS READ
   const [markAsRead] = useMarkAsReadMutation();

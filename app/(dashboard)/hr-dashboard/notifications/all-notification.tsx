@@ -12,7 +12,7 @@ import { useGetNotificationsQuery } from "@/app/redux/features/notification/noti
 
 /* ---------------- PAGE ---------------- */
 
-export default function NotificationsClient() {
+export default function HrNotificationsClient() {
   const [page, setPage] = useState(1);
   const limit = 10;
 

@@ -28,11 +28,10 @@ export const notificationApi = createApi({
   endpoints: (builder) => ({
     // GET all notifications
     getNotifications: builder.query({
-      query: () => ({
-        url: "notifications",
+      query: (userId) => ({
+        url: `notifications?userId=${userId}`,
         method: "GET",
       }),
-      providesTags: ["Notification"],
     }),
 
     // CREATE notification

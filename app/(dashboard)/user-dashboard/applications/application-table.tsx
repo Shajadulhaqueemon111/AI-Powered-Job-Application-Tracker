@@ -47,7 +47,14 @@ type Application = {
   fullName: string;
   email: string;
   phone: string;
-  status: "pending" | "approved" | "rejected";
+  status:
+    | "pending"
+    | "in_review"
+    | "shortlisted"
+    | "interviewed"
+    | "offered"
+    | "hired"
+    | "rejected";
   createdAt: string;
   resumeUrl: string;
   jobId?: Job;
@@ -153,11 +160,19 @@ export default function MyApplicationsTable({
           return (
             <span
               className={`px-2 py-1 rounded text-xs font-medium ${
-                status === "approved"
-                  ? "bg-green-100 text-green-600"
-                  : status === "rejected"
-                    ? "bg-red-100 text-red-600"
-                    : "bg-yellow-100 text-yellow-600"
+                status === "pending"
+                  ? "bg-blue-100 text-blue-600"
+                  : status === "in_review"
+                    ? "bg-purple-100 text-purple-600"
+                    : status === "shortlisted"
+                      ? "bg-indigo-100 text-indigo-600"
+                      : status === "interviewed"
+                        ? "bg-cyan-100 text-cyan-600"
+                        : status === "offered"
+                          ? "bg-green-100 text-green-600"
+                          : status === "hired"
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-red-100 text-red-600"
               }`}
             >
               {status}
