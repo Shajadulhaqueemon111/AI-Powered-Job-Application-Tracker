@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import ChatPage from "./chat";
-import UserChatPage from "./chat";
+import HRChatPage from "./message";
 
 // 🔥 SEO / Metadata
 export const metadata: Metadata = {
-  title: "AI Career Chat | Dashboard",
+  title: "Hr Career Chat | Dashboard",
   description:
     "Chat with your AI career assistant to get job suggestions, resume tips, and skill improvement guidance.",
   keywords: [
@@ -15,12 +14,12 @@ export const metadata: Metadata = {
     "job dashboard chat",
   ],
   openGraph: {
-    title: "AI Career Chat",
+    title: "Hr Career Chat",
     description: "Your real-time AI job assistant inside dashboard",
     type: "website",
   },
 };
 
 export default function Page() {
-  return <UserChatPage />;
+  return <HRChatPage />;
 }

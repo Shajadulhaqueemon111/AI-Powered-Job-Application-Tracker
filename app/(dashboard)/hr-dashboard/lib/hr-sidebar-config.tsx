@@ -50,7 +50,7 @@ export const hrSidebar = {
     },
     {
       title: "Messages",
-      url: "/hr-dashboard/chat",
+      url: "/hr-dashboard/chat-message",
       icon: <MessageCircleIcon />,
     },
     {

@@ -5,6 +5,7 @@ import authReducer from "./features/auth/authSlice"; //
 import { applicationApi } from "./features/application/application-api";
 import { userApi } from "./features/users/users-api";
 import { notificationApi } from "./features/notification/notification";
+import { chatMessageApi } from "./features/chat-message/message";
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ export const store = configureStore({
     [jobApi.reducerPath]: jobApi.reducer,
     [applicationApi.reducerPath]: applicationApi.reducer,
     [notificationApi.reducerPath]: notificationApi.reducer,
+    [chatMessageApi.reducerPath]: chatMessageApi.reducer,
   },
 
   middleware: (getDefaultMiddleware) =>
@@ -23,6 +25,7 @@ export const store = configureStore({
       jobApi.middleware,
       applicationApi.middleware,
       notificationApi.middleware,
+      chatMessageApi.middleware,
     ),
 });
 

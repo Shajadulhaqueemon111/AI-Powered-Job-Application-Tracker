@@ -12,12 +12,12 @@ import { useGetNotificationsQuery } from "@/app/redux/features/notification/noti
 
 /* ---------------- PAGE ---------------- */
 
-export default function NotificationsClient() {
+export default function HrNotificationsClient() {
   const [page, setPage] = useState(1);
-  const limit = 10;
+  const itemsPerPage = 6;
 
   const { data, isLoading } = useGetNotificationsQuery(
-    { page, limit },
+    { page: 1, limit: 100 },
     {
       pollingInterval: 10000,
     },
@@ -25,15 +25,23 @@ export default function NotificationsClient() {
 
   const notifications = data?.data || [];
 
-  // 🔥 ONLY READ (UNREAD HIDDEN COMPLETELY)
   const readNotifications = notifications.filter((n: any) => n.read === true);
 
-  // 🔥 SPLIT GLOBAL / PRIVATE
-  const globalNotifications = readNotifications.filter(
+  const totalItems = readNotifications.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+  const startIndex = (page - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedReadNotifications = readNotifications.slice(
+    startIndex,
+    endIndex,
+  );
+
+  const globalNotifications = paginatedReadNotifications.filter(
     (n: any) => n.userId === null,
   );
 
-  const privateNotifications = readNotifications.filter(
+  const privateNotifications = paginatedReadNotifications.filter(
     (n: any) => n.userId !== null,
   );
 
@@ -56,36 +64,62 @@ export default function NotificationsClient() {
               </p>
             </div>
 
-            <Badge className="bg-blue-500/10 text-blue-500">
-              {unreadCount} Unread (Hidden)
-            </Badge>
+            {isLoading ? (
+              // Header Badge Skeleton
+              <div className="h-6 w-32 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded-full" />
+            ) : (
+              <Badge className="bg-blue-500/10 text-blue-500">
+                {unreadCount} Unread (Hidden)
+              </Badge>
+            )}
           </div>
         </motion.div>
 
         {/* GRID SECTION */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Section title="🌍 Global Notifications" data={globalNotifications} />
-
-          <Section
-            title="🔒 Private Notifications"
-            data={privateNotifications}
-          />
+          {isLoading ? (
+            <>
+              <SectionSkeleton title="🌍 Global Notifications" />
+              <SectionSkeleton title="🔒 Private Notifications" />
+            </>
+          ) : (
+            <>
+              <Section
+                title="🌍 Global Notifications"
+                data={globalNotifications}
+              />
+              <Section
+                title="🔒 Private Notifications"
+                data={privateNotifications}
+              />
+            </>
+          )}
         </div>
 
-        {/* PAGINATION */}
-        <div className="flex justify-center gap-3 pt-6">
-          <Button
-            variant="outline"
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Prev
-          </Button>
+        {/* PAGINATION SECTION */}
+        {!isLoading && totalPages > 1 && (
+          <div className="flex justify-center items-center gap-3 pt-6">
+            <Button
+              variant="outline"
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+            >
+              Prev
+            </Button>
 
-          <Button variant="outline">{page}</Button>
+            <span className="text-sm text-zinc-500 px-2">
+              Page {page} of {totalPages}
+            </span>
 
-          <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
-        </div>
+            <Button
+              variant="outline"
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+            >
+              Next
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -101,7 +135,9 @@ function Section({ title, data }: any) {
       </h2>
 
       {data.length === 0 ? (
-        <p className="text-sm text-zinc-500">No read notifications</p>
+        <p className="text-sm text-zinc-500">
+          No read notifications on this page
+        </p>
       ) : (
         <div className="space-y-3">
           {data.map((n: any) => (
@@ -150,5 +186,47 @@ function NotificationCard({ data }: any) {
         <Badge className="bg-green-500/20 text-green-500">Read</Badge>
       </div>
     </motion.div>
+  );
+}
+
+/* ---------------- SKELETON COMPONENTS (SAME TO SAME) ---------------- */
+
+function SectionSkeleton({ title }: { title: string }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300">
+        {title}
+      </h2>
+      <div className="space-y-3">
+        {/* লুপ চালিয়ে ৪টি স্কেলিটন কার্ড জেনারেট করা হচ্ছে */}
+        {[...Array(4)].map((_, i) => (
+          <CardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="rounded-2xl border p-4 bg-white/60 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 animate-pulse">
+      <div className="flex items-start gap-3">
+        {/* ICON SKELETON */}
+        <div className="p-2 rounded-xl bg-zinc-200 dark:bg-zinc-800 w-9 h-9 shrink-0" />
+
+        {/* CONTENT SKELETON */}
+        <div className="flex-1 space-y-2 mt-1">
+          {/* Title Line */}
+          <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-1/2" />
+          {/* Message Line */}
+          <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-3/4" />
+          {/* Date Line */}
+          <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800/60 rounded w-1/4 mt-2" />
+        </div>
+
+        {/* BADGE SKELETON */}
+        <div className="h-5 bg-zinc-200 dark:bg-zinc-800 rounded-full w-12 shrink-0" />
+      </div>
+    </div>
   );
 }

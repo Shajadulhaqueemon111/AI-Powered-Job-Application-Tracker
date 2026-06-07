@@ -34,14 +34,14 @@ export const jobApi = createApi({
       }),
       invalidatesTags: ["Job"],
     }),
-    // getJobs: builder.query({
-    //   query: () => ({
-    //     url: "jobs",
-    //     method: "GET",
-    //   }),
-    //   providesTags: ["Job"],
-    // }),
     getJobs: builder.query({
+      query: () => ({
+        url: "jobs",
+        method: "GET",
+      }),
+      providesTags: ["Job"],
+    }),
+    getHrJobs: builder.query({
       query: (createdBy?: string) => ({
         url: createdBy ? `jobs?createdBy=${createdBy}` : "jobs",
         method: "GET",
@@ -70,4 +70,5 @@ export const {
   useGetJobsQuery,
   useUpdateJobMutation,
   useDeleteJobMutation,
+  useGetHrJobsQuery,
 } = jobApi;

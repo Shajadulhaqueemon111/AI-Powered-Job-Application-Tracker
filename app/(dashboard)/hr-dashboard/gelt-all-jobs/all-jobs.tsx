@@ -53,6 +53,7 @@ import {
 
 import {
   useDeleteJobMutation,
+  useGetHrJobsQuery,
   useGetJobsQuery,
 } from "@/app/redux/features/jobs/jobs-api";
 import { HrJobCardSkeleton } from "./skeliton";
@@ -149,7 +150,7 @@ export default function HrMyJobs() {
   const { data: me, isLoading: userLoading } = useGetMeQuery();
   const hrId = me?.data?.user?._id;
 
-  const { data, isLoading: jobsLoading } = useGetJobsQuery(undefined);
+  const { data, isLoading: jobsLoading } = useGetHrJobsQuery(hrId);
   const [deleteJob] = useDeleteJobMutation();
 
   // ── Derived data ───────────────────────────────────────────────────────────
