@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -25,6 +26,7 @@ import {
   useGetChatMessagesQuery,
 } from "@/app/redux/features/chat-message/message";
 import Image from "next/image";
+import { socket } from "@/app/lib/soket"; // ✅ socket import যোগ করা হয়েছে
 
 /* ───────────────────────── Types ───────────────────────────── */
 
@@ -50,6 +52,7 @@ type Conversation = {
 type Message = {
   _id: string;
   senderId: any;
+  applicationId?: string; // ✅ applicationId যোগ করা হয়েছে
   receiverId: any;
   message: string;
   createdAt: string;
@@ -289,9 +292,18 @@ export default function UserChatPage() {
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [sending, setSending] = useState(false);
 
+  // ✅ localMessages state — socket real-time update এখানে হবে
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ✅ selectedConv ref — socket handler-এ stale closure এড়াতে
+  const selectedConvRef = useRef<Conversation | null>(null);
+  useEffect(() => {
+    selectedConvRef.current = selectedConv;
+  }, [selectedConv]);
 
   /* Auth */
   const { data: meData } = useGetMeQuery();
@@ -299,14 +311,10 @@ export default function UserChatPage() {
   const userName: string = meData?.data?.user?.name ?? "Me";
   const userAvatar: string | undefined = meData?.data?.user?.avatar;
 
-  /* User's applications — each application = one HR conversation */
+  /* Applications */
   const { data: appData, isLoading: appLoading } = useGetApplicationsQuery({
     userId,
   });
-  console.log("Applications:", appData);
-  console.log("meData:", meData);
-  console.log("userId:", userId);
-  console.log("appData:", appData);
   const rawApps =
     appData?.data?.data ??
     appData?.data?.applications ??
@@ -315,7 +323,6 @@ export default function UserChatPage() {
     [];
   const applications: any[] = Array.isArray(rawApps) ? rawApps : [];
 
-  /* Build conversation list from applications */
   function toConversation(app: any): Conversation {
     const job = app?.jobId ?? {};
     const company = job?.company ?? {};
@@ -331,30 +338,73 @@ export default function UserChatPage() {
     };
   }
 
-  /* Messages */
-  const { data: msgData, refetch: refetchMessages } = useGetChatMessagesQuery(
+  /* Messages — initial DB load */
+  const { data: msgData } = useGetChatMessagesQuery(
     selectedConv?.applicationId,
     { skip: !selectedConv },
   );
 
   const [sendMessage] = useCreateChatMessageMutation();
-  const messages: Message[] = msgData?.data ?? [];
 
-  /* Group messages by date */
-  const groupedMessages = messages.reduce(
-    (acc: Record<string, Message[]>, msg) => {
-      const label = formatDate(msg.createdAt);
-      if (!acc[label]) acc[label] = [];
-      acc[label].push(msg);
-      return acc;
-    },
-    {},
-  );
+  // ✅ DB থেকে messages load হলে localMessages সেট করো
+  useEffect(() => {
+    if (!msgData) return;
+    const incoming: Message[] = Array.isArray(msgData.data)
+      ? msgData.data
+      : (msgData.data?.messages ?? msgData.data?.data ?? []);
+    setLocalMessages(incoming);
+  }, [msgData]);
+
+  // ✅ Conversation পরিবর্তন হলে localMessages clear করো
+  useEffect(() => {
+    setLocalMessages([]);
+  }, [selectedConv?.applicationId]);
+
+  /* ══════════════════════════════════════════════════
+     SOCKET.IO — real-time setup
+  ══════════════════════════════════════════════════ */
+
+  useEffect(() => {
+    if (!userId) return;
+
+    // User নিজের userId দিয়ে register করো
+    socket.emit("register", userId);
+
+    const handleNewMessage = (newMsg: Message) => {
+      const current = selectedConvRef.current;
+      // বর্তমান চ্যাটের মেসেজ না হলে ignore
+      if (
+        !current ||
+        String(newMsg.applicationId) !== String(current.applicationId)
+      ) {
+        return;
+      }
+      setLocalMessages((prev) => {
+        if (prev.some((m) => m._id === newMsg._id)) return prev; // duplicate এড়াও
+        return [...prev, newMsg];
+      });
+    };
+
+    socket.on("newMessage", handleNewMessage);
+
+    return () => {
+      socket.off("newMessage", handleNewMessage);
+    };
+  }, [userId]); // ✅ শুধু userId-এর উপর depend করো
+
+  // ✅ Room join/leave
+  useEffect(() => {
+    if (!selectedConv?.applicationId) return;
+    socket.emit("joinRoom", selectedConv.applicationId);
+    return () => {
+      socket.emit("leaveRoom", selectedConv.applicationId);
+    };
+  }, [selectedConv?.applicationId]);
 
   /* Scroll to bottom */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [localMessages]);
 
   /* Auto-resize textarea */
   useEffect(() => {
@@ -365,7 +415,6 @@ export default function UserChatPage() {
     }
   }, [text]);
 
-  /* Determine: is this message sent by the current user? */
   const isOutgoing = (msg: Message) => {
     if (!userId) return false;
     const sid =
@@ -373,7 +422,6 @@ export default function UserChatPage() {
     return sid === userId;
   };
 
-  /* File pick */
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -383,24 +431,52 @@ export default function UserChatPage() {
     e.target.value = "";
   };
 
-  /* Send */
+  /* ✅ Send — with optimistic update */
   const handleSend = useCallback(async () => {
     if ((!text.trim() && !attachment) || !selectedConv) return;
     setSending(true);
+
+    const optimisticId = `temp_${Date.now()}`;
+    const optimisticMsg: Message = {
+      _id: optimisticId,
+      senderId: userId,
+      receiverId: selectedConv.hrId,
+      applicationId: selectedConv.applicationId,
+      message: text,
+      createdAt: new Date().toISOString(),
+      attachments: [],
+    };
+
+    // নিজের message সাথে সাথে দেখাও
+    setLocalMessages((prev) => [...prev, optimisticMsg]);
+
     try {
-      await sendMessage({
+      const result = await sendMessage({
         receiverId: selectedConv.hrId,
         applicationId: selectedConv.applicationId,
         message: text,
         ...(attachment ? { file: attachment.file } : {}),
-      });
+      }).unwrap();
+
+      // সার্ভার থেকে real message দিয়ে replace করো
+      const sentMsg =
+        result?.data?.message ?? result?.data ?? result?.message ?? result;
+      if (sentMsg?._id) {
+        setLocalMessages((prev) =>
+          prev.map((m) => (m._id === optimisticId ? sentMsg : m)),
+        );
+      }
+
       setText("");
       setAttachment(null);
-      refetchMessages();
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Error হলে optimistic message সরিয়ে দাও
+      setLocalMessages((prev) => prev.filter((m) => m._id !== optimisticId));
     } finally {
       setSending(false);
     }
-  }, [text, attachment, selectedConv, sendMessage, refetchMessages]);
+  }, [text, attachment, selectedConv, sendMessage, userId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -408,6 +484,19 @@ export default function UserChatPage() {
       handleSend();
     }
   };
+
+  // localMessages থেকে date-grouped messages তৈরি করো (DB messages নয়)
+  const groupedMessages = localMessages.reduce(
+    (acc: Record<string, Message[]>, msg) => {
+      const label = msg._id.startsWith("temp_")
+        ? "Today"
+        : formatDate(msg.createdAt);
+      if (!acc[label]) acc[label] = [];
+      acc[label].push(msg);
+      return acc;
+    },
+    {},
+  );
 
   /* Theme */
   const theme = dark
@@ -466,90 +555,45 @@ export default function UserChatPage() {
           overflow: hidden; transition: background 0.25s, color 0.25s;
         }
 
-        /* ── Sidebar ── */
         .uc-sidebar {
           width: 330px; min-width: 290px;
           border-right: 1px solid var(--border-strong);
           display: flex; flex-direction: column;
           background: var(--bg-secondary); transition: background 0.25s;
         }
-        .uc-sidebar-header {
-          padding: 18px 18px 14px;
-          border-bottom: 1px solid var(--border);
-          display: flex; align-items: center; gap: 10px;
-        }
+        .uc-sidebar-header { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
         .uc-sidebar-title { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; flex: 1; }
-        .uc-badge {
-          font-size: 11px; background: var(--accent-light); color: var(--accent);
-          padding: 2px 9px; border-radius: 20px; font-weight: 600;
-        }
-        .uc-icon-btn {
-          width: 34px; height: 34px; border-radius: 9px;
-          border: 1px solid var(--border-strong); background: transparent;
-          cursor: pointer; display: flex; align-items: center; justify-content: center;
-          color: var(--text-secondary); transition: background 0.15s, color 0.15s; flex-shrink: 0;
-        }
+        .uc-badge { font-size: 11px; background: var(--accent-light); color: var(--accent); padding: 2px 9px; border-radius: 20px; font-weight: 600; }
+        .uc-icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-strong); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); transition: background 0.15s, color 0.15s; flex-shrink: 0; }
         .uc-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
         .uc-list { flex: 1; overflow-y: auto; padding: 6px 8px 8px; }
         .uc-list::-webkit-scrollbar { width: 3px; }
         .uc-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
 
-        .uc-section-label {
-          font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
-          text-transform: uppercase; color: var(--text-muted); padding: 8px 12px 4px;
-        }
+        .uc-section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); padding: 8px 12px 4px; }
 
-        .uc-conv-item {
-          display: flex; align-items: center; gap: 12px;
-          padding: 10px 12px; border-radius: 12px;
-          cursor: pointer; transition: background 0.15s;
-          margin-bottom: 3px; border: 1px solid transparent;
-        }
+        .uc-conv-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; cursor: pointer; transition: background 0.15s; margin-bottom: 3px; border: 1px solid transparent; }
         .uc-conv-item:hover { background: var(--bg-hover); }
         .uc-conv-item.active { background: var(--bg-active); border-color: rgba(59,130,246,0.25); }
 
         .uc-conv-logo { flex-shrink: 0; }
         .uc-conv-info { flex: 1; min-width: 0; }
-        .uc-conv-company {
-          font-size: 13.5px; font-weight: 600; color: var(--text-primary);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .uc-conv-job {
-          font-size: 11.5px; color: var(--accent);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
-        }
-        .uc-conv-status {
-          font-size: 10.5px; color: var(--text-muted);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
-        }
+        .uc-conv-company { font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .uc-conv-job { font-size: 11.5px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+        .uc-conv-status { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 
-        .uc-no-result {
-          text-align: center; padding: 40px 16px;
-          color: var(--text-muted); font-size: 13px;
-          display: flex; flex-direction: column; align-items: center; gap: 8px;
-        }
+        .uc-no-result { text-align: center; padding: 40px 16px; color: var(--text-muted); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 
-        /* ── Chat ── */
         .uc-chat { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }
 
-        .uc-chat-header {
-          padding: 0 20px; height: 68px;
-          border-bottom: 1px solid var(--border-strong);
-          display: flex; align-items: center; gap: 12px;
-          background: var(--bg-primary); flex-shrink: 0;
-        }
+        .uc-chat-header { padding: 0 20px; height: 68px; border-bottom: 1px solid var(--border-strong); display: flex; align-items: center; gap: 12px; background: var(--bg-primary); flex-shrink: 0; }
         .uc-chat-hinfo { flex: 1; min-width: 0; }
         .uc-chat-hname { font-size: 15px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
         .uc-chat-hsub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
         .uc-chat-hactions { display: flex; align-items: center; gap: 4px; }
 
-        /* ── Messages ── */
-        .uc-messages {
-          flex: 1; overflow-y: auto;
-          padding: 20px 24px 12px;
-          display: flex; flex-direction: column; gap: 2px;
-        }
+        .uc-messages { flex: 1; overflow-y: auto; padding: 20px 24px 12px; display: flex; flex-direction: column; gap: 2px; }
         .uc-messages::-webkit-scrollbar { width: 3px; }
         .uc-messages::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
 
@@ -557,138 +601,63 @@ export default function UserChatPage() {
         .uc-date-line { flex: 1; height: 1px; background: var(--border); }
         .uc-date-label { font-size: 11px; color: var(--text-muted); font-weight: 500; padding: 0 6px; white-space: nowrap; }
 
-        .uc-msg-row {
-          display: flex; align-items: flex-end; gap: 8px;
-          margin-bottom: 6px;
-        }
+        .uc-msg-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 6px; }
         .uc-msg-row.me { flex-direction: row-reverse; }
 
         .uc-msg-content { display: flex; flex-direction: column; max-width: 62%; }
         .uc-msg-row.me .uc-msg-content { align-items: flex-end; }
         .uc-msg-row.hr .uc-msg-content { align-items: flex-start; }
 
-        .uc-sender-name {
-          font-size: 11px; font-weight: 500; color: var(--text-muted);
-          margin-bottom: 3px; padding: 0 4px;
-        }
+        .uc-sender-name { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 3px; padding: 0 4px; }
 
-        .uc-bubble {
-          padding: 10px 14px; border-radius: 18px;
-          font-size: 14px; line-height: 1.6; word-break: break-word;
-          display: inline-block; max-width: 100%;
-        }
-        .uc-bubble.me {
-          background: var(--bubble-me); color: var(--bubble-me-text);
-          border-bottom-right-radius: 5px;
-        }
-        .uc-bubble.hr {
-          background: var(--bubble-hr); color: var(--bubble-hr-text);
-          border-bottom-left-radius: 5px;
-        }
-        .uc-msg-meta {
-          display: flex; align-items: center; gap: 4px;
-          margin-top: 4px; padding: 0 4px;
-        }
+        .uc-bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.6; word-break: break-word; display: inline-block; max-width: 100%; }
+        .uc-bubble.me { background: var(--bubble-me); color: var(--bubble-me-text); border-bottom-right-radius: 5px; }
+        .uc-bubble.hr { background: var(--bubble-hr); color: var(--bubble-hr-text); border-bottom-left-radius: 5px; }
+
+        /* Optimistic message */
+        .uc-msg-row.optimistic .uc-bubble { opacity: 0.7; }
+
+        .uc-msg-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; padding: 0 4px; }
         .uc-msg-row.me .uc-msg-meta { flex-direction: row-reverse; }
         .uc-msg-time { font-size: 10.5px; color: var(--text-muted); }
 
         .uc-att-thumb { width: 180px; border-radius: 10px; overflow: hidden; margin-bottom: 6px; cursor: pointer; }
         .uc-att-thumb img { width: 100%; display: block; }
-        .uc-att-doc {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(0,0,0,0.08); padding: 8px 10px;
-          border-radius: 8px; margin-bottom: 6px; font-size: 12px; cursor: pointer;
-        }
+        .uc-att-doc { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.08); padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 12px; cursor: pointer; }
         .uc-bubble.me .uc-att-doc { background: rgba(255,255,255,0.18); }
 
-        /* ── Empty ── */
-        .uc-empty {
-          flex: 1; display: flex; flex-direction: column;
-          align-items: center; justify-content: center; gap: 14px;
-        }
-        .uc-empty-icon {
-          width: 72px; height: 72px; border-radius: 22px;
-          background: var(--bg-tertiary);
-          display: flex; align-items: center; justify-content: center;
-        }
+        .uc-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+        .uc-empty-icon { width: 72px; height: 72px; border-radius: 22px; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; }
         .uc-empty-title { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
         .uc-empty-sub { font-size: 13px; text-align: center; max-width: 240px; line-height: 1.55; color: var(--text-muted); }
 
-        /* ── Input ── */
-        .uc-input-area {
-          padding: 10px 18px 18px;
-          background: var(--bg-primary); border-top: 1px solid var(--border); flex-shrink: 0;
-        }
-        .uc-att-preview {
-          display: flex; align-items: center; gap: 10px;
-          background: var(--accent-light); border: 1px solid var(--accent);
-          border-radius: 10px; padding: 7px 12px; margin-bottom: 8px;
-        }
-        .uc-att-preview-name {
-          font-size: 13px; font-weight: 500; color: var(--accent);
-          flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
+        .uc-input-area { padding: 10px 18px 18px; background: var(--bg-primary); border-top: 1px solid var(--border); flex-shrink: 0; }
+        .uc-att-preview { display: flex; align-items: center; gap: 10px; background: var(--accent-light); border: 1px solid var(--accent); border-radius: 10px; padding: 7px 12px; margin-bottom: 8px; }
+        .uc-att-preview-name { font-size: 13px; font-weight: 500; color: var(--accent); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .uc-att-preview-img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; }
-        .uc-att-remove {
-          width: 22px; height: 22px; border-radius: 6px; border: none;
-          background: transparent; cursor: pointer; color: var(--accent);
-          display: flex; align-items: center; justify-content: center; padding: 0;
-        }
+        .uc-att-remove { width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent; cursor: pointer; color: var(--accent); display: flex; align-items: center; justify-content: center; padding: 0; }
         .uc-att-remove:hover { background: var(--accent-light); }
-        .uc-input-row {
-          display: flex; align-items: flex-end; gap: 8px;
-          background: var(--input-bg); border: 1px solid var(--border-strong);
-          border-radius: 15px; padding: 7px 7px 7px 13px; transition: border 0.15s;
-        }
+        .uc-input-row { display: flex; align-items: flex-end; gap: 8px; background: var(--input-bg); border: 1px solid var(--border-strong); border-radius: 15px; padding: 7px 7px 7px 13px; transition: border 0.15s; }
         .uc-input-row:focus-within { border-color: var(--accent); }
-        .uc-textarea {
-          flex: 1; background: transparent; border: none; outline: none;
-          font-family: 'DM Sans', sans-serif; font-size: 14px;
-          color: var(--text-primary); resize: none; line-height: 1.55;
-          padding: 3px 0; min-height: 22px; max-height: 120px;
-        }
+        .uc-textarea { flex: 1; background: transparent; border: none; outline: none; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text-primary); resize: none; line-height: 1.55; padding: 3px 0; min-height: 22px; max-height: 120px; }
         .uc-textarea::placeholder { color: var(--text-muted); }
-        .uc-send-btn {
-          width: 36px; height: 36px; border-radius: 11px; border: none;
-          background: var(--accent); color: #fff; cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0; transition: opacity 0.15s, transform 0.1s;
-        }
+        .uc-send-btn { width: 36px; height: 36px; border-radius: 11px; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.15s, transform 0.1s; }
         .uc-send-btn:hover { opacity: 0.88; }
         .uc-send-btn:active { transform: scale(0.93); }
         .uc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .uc-attach-btn {
-          width: 30px; height: 30px; border-radius: 8px; border: none;
-          background: transparent; cursor: pointer; color: var(--text-muted);
-          display: flex; align-items: center; justify-content: center;
-          padding: 0; flex-shrink: 0; transition: color 0.15s, background 0.15s;
-        }
+        .uc-attach-btn { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; transition: color 0.15s, background 0.15s; }
         .uc-attach-btn:hover { color: var(--accent); background: var(--accent-light); }
 
-        /* ── Skeleton ── */
-        .uc-skeleton {
-          background: linear-gradient(90deg, var(--skeleton) 25%, var(--bg-hover) 50%, var(--skeleton) 75%);
-          background-size: 200% 100%;
-          animation: uc-shimmer 1.4s infinite;
-        }
+        .uc-skeleton { background: linear-gradient(90deg, var(--skeleton) 25%, var(--bg-hover) 50%, var(--skeleton) 75%); background-size: 200% 100%; animation: uc-shimmer 1.4s infinite; }
         @keyframes uc-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-        /* ── Responsive ── */
         @media (max-width: 768px) {
-          .uc-sidebar {
-            width: 100%; min-width: unset;
-            position: absolute; inset: 0; z-index: 10; border-right: none;
-          }
+          .uc-sidebar { width: 100%; min-width: unset; position: absolute; inset: 0; z-index: 10; border-right: none; }
           .uc-sidebar.uc-hidden { display: none; }
           .uc-back-btn { display: flex !important; }
           .uc-msg-content { max-width: 82%; }
         }
-        .uc-back-btn {
-          display: none; align-items: center; justify-content: center;
-          width: 34px; height: 34px; border-radius: 9px;
-          border: 1px solid var(--border-strong); background: transparent;
-          cursor: pointer; color: var(--text-secondary);
-        }
+        .uc-back-btn { display: none; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-strong); background: transparent; cursor: pointer; color: var(--text-secondary); }
         .uc-back-btn:hover { background: var(--bg-hover); }
       `}</style>
 
@@ -762,7 +731,6 @@ export default function UserChatPage() {
       <main className="uc-chat">
         {selectedConv ? (
           <>
-            {/* Header */}
             <div className="uc-chat-header">
               <button
                 className="uc-back-btn"
@@ -805,9 +773,8 @@ export default function UserChatPage() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="uc-messages">
-              {messages.length === 0 && (
+              {localMessages.length === 0 && (
                 <div
                   style={{
                     textAlign: "center",
@@ -829,12 +796,12 @@ export default function UserChatPage() {
                   </div>
                   {msgs.map((msg) => {
                     const out = isOutgoing(msg);
+                    const isOptimistic = msg._id.startsWith("temp_");
                     return (
                       <div
                         key={msg._id}
-                        className={`uc-msg-row ${out ? "me" : "hr"}`}
+                        className={`uc-msg-row ${out ? "me" : "hr"} ${isOptimistic ? "optimistic" : ""}`}
                       >
-                        {/* Avatar */}
                         {!out ? (
                           <CompanyBadge
                             logo={selectedConv.companyLogo}
@@ -849,8 +816,6 @@ export default function UserChatPage() {
                             size={28}
                           />
                         )}
-
-                        {/* Bubble content */}
                         <div className="uc-msg-content">
                           <span className="uc-sender-name">
                             {out ? "You" : (selectedConv.companyName ?? "HR")}
@@ -878,7 +843,9 @@ export default function UserChatPage() {
                           </div>
                           <div className="uc-msg-meta">
                             <span className="uc-msg-time">
-                              {formatTime(msg.createdAt)}
+                              {isOptimistic
+                                ? "Sending…"
+                                : formatTime(msg.createdAt)}
                             </span>
                           </div>
                         </div>
@@ -890,7 +857,6 @@ export default function UserChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div className="uc-input-area">
               {attachment && (
                 <div className="uc-att-preview">

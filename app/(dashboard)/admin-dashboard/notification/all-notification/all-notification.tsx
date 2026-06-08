@@ -23,6 +23,7 @@ export default function NotificationDropdown() {
   // GET notifications
   const { data, isLoading } = useGetNotificationsQuery(userId, {
     pollingInterval: 10000,
+    skip: !userId,
   });
 
   const notifications = (data?.data || []).filter(

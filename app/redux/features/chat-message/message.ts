@@ -39,7 +39,7 @@ export const chatMessageApi = createApi({
         url: `messages/conversation/${applicationId}`,
         method: "GET",
       }),
-      providesTags: ["ChatMessage"],
+      // providesTags: ["ChatMessage"],
     }),
 
     updateChatMessage: builder.mutation({

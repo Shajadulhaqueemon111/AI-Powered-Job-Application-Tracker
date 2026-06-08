@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -26,6 +27,7 @@ import {
   useGetChatMessagesQuery,
 } from "@/app/redux/features/chat-message/message";
 import Image from "next/image";
+import { socket } from "@/app/lib/soket";
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -50,6 +52,7 @@ type SelectedUser = {
 type Message = {
   _id: string;
   senderId: any;
+  applicationId?: string;
   receiverId: any;
   message: string;
   createdAt: string;
@@ -218,17 +221,24 @@ function SkeletonItem() {
 /* ──────────────────────── Main ──────────────────────────────── */
 
 export default function HRChatPage() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [search, setSearch] = useState("");
   const [page] = useState(1);
   const [text, setText] = useState("");
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [sending, setSending] = useState(false);
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // selectedUser ref — socket handler-এ stale closure এড়াতে
+  const selectedUserRef = useRef<SelectedUser | null>(null);
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -239,14 +249,10 @@ export default function HRChatPage() {
 
   /* ── Applications list ── */
   const { data: appData, isLoading: appLoading } = useGetApplicationsQuery(
-    {
-      hrId,
-      search: debouncedSearch || undefined,
-      page,
-    },
+    { hrId, search: debouncedSearch || undefined, page },
     { skip: !hrId },
   );
-  console.log("Applications data:", appData);
+
   const rawAppData =
     appData?.data?.data ??
     appData?.data?.applications ??
@@ -254,30 +260,125 @@ export default function HRChatPage() {
     appData ??
     [];
   const applications: any[] = Array.isArray(rawAppData) ? rawAppData : [];
-  console.log("Parsed applications:", applications);
-  /* ── Messages for selected conversation ── */
-  const { data: msgData, refetch: refetchMessages } = useGetChatMessagesQuery(
-    selectedUser?.applicationId,
-    {
-      skip: !selectedUser,
-    },
-  );
-  console.log("Chat messages data:", msgData);
-  const [sendMessage] = useCreateChatMessageMutation();
-  const rawMessages =
-    msgData?.data?.messages ??
-    msgData?.data?.data ??
-    msgData?.data ??
-    msgData ??
-    [];
-  const messages: Message[] = Array.isArray(rawMessages) ? rawMessages : [];
 
-  /* auto-scroll on new messages */
+  /* ── Messages for selected conversation (initial DB load) ── */
+  const { data: msgData, refetch } = useGetChatMessagesQuery(
+    selectedUser?.applicationId,
+    { skip: !selectedUser },
+  );
+
+  const [sendMessage] = useCreateChatMessageMutation();
+
+  /* ── DB থেকে initial messages load হলে localMessages সেট করো ── */
+  useEffect(() => {
+    if (!msgData) return;
+    const incoming: Message[] = Array.isArray(msgData.data)
+      ? msgData.data
+      : (msgData.data?.messages ?? msgData.data?.data ?? []);
+    setLocalMessages(incoming);
+  }, [msgData]);
+
+  /* ── Conversation change হলে localMessages clear করো ── */
+  useEffect(() => {
+    setLocalMessages([]);
+  }, [selectedUser?.applicationId]);
+
+  /* ══════════════════════════════════════════════════
+     SOCKET.IO — real-time setup (FIX: একবার mount-এ listener বসাও)
+  ══════════════════════════════════════════════════ */
+
+  useEffect(() => {
+    if (!hrId) return;
+
+    // HR নিজের userId দিয়ে register করো
+    socket.emit("register", hrId);
+
+    const handleNewMessage = (newMsg: Message) => {
+      const current = selectedUserRef.current;
+      // বর্তমান চ্যাটের মেসেজ না হলে ignore
+      if (
+        !current ||
+        String(newMsg.applicationId) !== String(current.applicationId)
+      ) {
+        return;
+      }
+      setLocalMessages((prev) => {
+        if (prev.some((m) => m._id === newMsg._id)) return prev; // duplicate এড়াও
+        return [...prev, newMsg];
+      });
+    };
+
+    socket.on("newMessage", handleNewMessage);
+
+    return () => {
+      socket.off("newMessage", handleNewMessage);
+    };
+  }, [hrId]); // ✅ শুধু hrId-এর উপর depend করো, selectedUser নয়
+
+  /* ── Room join/leave ── */
+  useEffect(() => {
+    if (!selectedUser?.applicationId) return;
+    socket.emit("joinRoom", selectedUser.applicationId);
+    return () => {
+      socket.emit("leaveRoom", selectedUser.applicationId);
+    };
+  }, [selectedUser?.applicationId]);
+
+  /* ── Send message ── */
+  const handleSend = useCallback(async () => {
+    if ((!text.trim() && !attachment) || !selectedUser) return;
+    setSending(true);
+
+    const optimisticId = `temp_${Date.now()}`;
+    const optimisticMsg: Message = {
+      _id: optimisticId,
+      senderId: hrId,
+      receiverId: selectedUser.userId,
+      applicationId: selectedUser.applicationId,
+      message: text,
+      createdAt: new Date().toISOString(),
+      attachments: [],
+    };
+
+    // Optimistic UI — নিজের message সাথে সাথে দেখাও
+    setLocalMessages((prev) => [...prev, optimisticMsg]);
+
+    try {
+      const result = await sendMessage({
+        receiverId: selectedUser.userId,
+        applicationId: selectedUser.applicationId,
+        message: text,
+        ...(attachment ? { file: attachment.file } : {}),
+      }).unwrap();
+
+      // সার্ভার থেকে আসা real message দিয়ে optimistic message replace করো
+      const sentMsg =
+        result?.data?.message ?? result?.data ?? result?.message ?? result;
+
+      if (sentMsg?._id) {
+        setLocalMessages((prev) =>
+          prev.map((m) => (m._id === optimisticId ? sentMsg : m)),
+        );
+      }
+
+      setText("");
+      setAttachment(null);
+      refetch();
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Error হলে optimistic message সরিয়ে দাও
+      setLocalMessages((prev) => prev.filter((m) => m._id !== optimisticId));
+    } finally {
+      setSending(false);
+    }
+  }, [text, attachment, selectedUser, sendMessage, hrId]);
+
+  /* ── Auto-scroll ── */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [localMessages]);
 
-  /* auto-resize textarea */
+  /* ── Auto-resize textarea ── */
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -286,9 +387,6 @@ export default function HRChatPage() {
     }
   }, [text]);
 
-  /* map application → SelectedUser
-     API shape: { _id, fullName, email, userId (string), jobId: { title }, resumeUrl, ... }
-  */
   function toSelectedUser(app: any): SelectedUser {
     return {
       applicationId: app?._id,
@@ -300,7 +398,6 @@ export default function HRChatPage() {
     };
   }
 
-  /* file pick */
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -310,25 +407,6 @@ export default function HRChatPage() {
     e.target.value = "";
   };
 
-  /* send message */
-  const handleSend = useCallback(async () => {
-    if ((!text.trim() && !attachment) || !selectedUser) return;
-    setSending(true);
-    try {
-      await sendMessage({
-        receiverId: selectedUser.userId,
-        applicationId: selectedUser.applicationId,
-        message: text,
-        ...(attachment ? { file: attachment.file } : {}),
-      });
-      setText("");
-      setAttachment(null);
-      refetchMessages();
-    } finally {
-      setSending(false);
-    }
-  }, [text, attachment, selectedUser, sendMessage, refetchMessages]);
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -336,7 +414,6 @@ export default function HRChatPage() {
     }
   };
 
-  /* determine direction: HR = sender (out), applicant = in */
   const isOutgoing = (msg: Message) => {
     if (!hrId) return true;
     const sid =
@@ -398,90 +475,49 @@ export default function HRChatPage() {
 
         .hr-chat-root {
           font-family: 'DM Sans', sans-serif;
-          height: 100dvh;
-          display: flex;
-          background: var(--bg-primary);
-          color: var(--text-primary);
-          overflow: hidden;
-          transition: background 0.25s, color 0.25s;
+          height: 100dvh; display: flex;
+          background: var(--bg-primary); color: var(--text-primary);
+          overflow: hidden; transition: background 0.25s, color 0.25s;
         }
 
-        /* Sidebar */
         .hrc-sidebar {
-          width: 320px;
-          min-width: 280px;
+          width: 320px; min-width: 280px;
           border-right: 1px solid var(--border-strong);
-          display: flex;
-          flex-direction: column;
-          background: var(--bg-secondary);
-          transition: background 0.25s;
+          display: flex; flex-direction: column;
+          background: var(--bg-secondary); transition: background 0.25s;
         }
         .hrc-sidebar-header {
-          padding: 18px 18px 12px;
-          border-bottom: 1px solid var(--border);
-          display: flex;
-          align-items: center;
-          gap: 10px;
+          padding: 18px 18px 12px; border-bottom: 1px solid var(--border);
+          display: flex; align-items: center; gap: 10px;
         }
-        .hrc-sidebar-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--text-primary);
-          letter-spacing: -0.02em;
-          flex: 1;
-        }
-        .hrc-count {
-          font-size: 11px;
-          background: var(--accent-light);
-          color: var(--accent);
-          padding: 2px 8px;
-          border-radius: 20px;
-          font-weight: 600;
-        }
+        .hrc-sidebar-title { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; flex: 1; }
+        .hrc-count { font-size: 11px; background: var(--accent-light); color: var(--accent); padding: 2px 8px; border-radius: 20px; font-weight: 600; }
         .hrc-icon-btn {
-          width: 34px; height: 34px;
-          border-radius: 9px;
-          border: 1px solid var(--border-strong);
-          background: transparent;
-          cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
-          color: var(--text-secondary);
-          transition: background 0.15s, color 0.15s;
-          flex-shrink: 0;
+          width: 34px; height: 34px; border-radius: 9px;
+          border: 1px solid var(--border-strong); background: transparent;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          color: var(--text-secondary); transition: background 0.15s, color 0.15s; flex-shrink: 0;
         }
         .hrc-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
         .hrc-search-wrap { padding: 10px 14px; position: relative; }
         .hrc-search-input {
           width: 100%; height: 36px;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-strong);
-          border-radius: 10px;
-          padding: 0 12px 0 36px;
-          font-family: 'DM Sans', sans-serif;
-          font-size: 13px;
-          color: var(--text-primary);
-          outline: none;
-          box-sizing: border-box;
+          background: var(--bg-tertiary); border: 1px solid var(--border-strong);
+          border-radius: 10px; padding: 0 12px 0 36px;
+          font-family: 'DM Sans', sans-serif; font-size: 13px;
+          color: var(--text-primary); outline: none; box-sizing: border-box;
           transition: border 0.15s, background 0.25s;
         }
         .hrc-search-input::placeholder { color: var(--text-muted); }
         .hrc-search-input:focus { border-color: var(--accent); background: var(--bg-primary); }
-        .hrc-search-icon {
-          position: absolute; left: 26px; top: 50%;
-          transform: translateY(-50%);
-          color: var(--text-muted); pointer-events: none;
-        }
+        .hrc-search-icon { position: absolute; left: 26px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
 
         .hrc-list { flex: 1; overflow-y: auto; padding: 4px 8px 8px; }
         .hrc-list::-webkit-scrollbar { width: 3px; }
         .hrc-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
 
-        .hrc-section-label {
-          font-size: 10px; font-weight: 700;
-          letter-spacing: 0.09em; text-transform: uppercase;
-          color: var(--text-muted); padding: 8px 12px 4px;
-        }
+        .hrc-section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); padding: 8px 12px 4px; }
 
         .hrc-item {
           display: flex; align-items: center; gap: 11px;
@@ -493,27 +529,12 @@ export default function HRChatPage() {
         .hrc-item.active { background: var(--bg-active); border-color: rgba(59,130,246,0.25); }
 
         .hrc-item-info { flex: 1; min-width: 0; }
-        .hrc-item-name {
-          font-size: 13.5px; font-weight: 500;
-          color: var(--text-primary);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .hrc-item-sub {
-          font-size: 11.5px; color: var(--text-secondary);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
-        }
-        .hrc-item-job {
-          font-size: 10.5px; color: var(--accent);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          margin-top: 2px; font-weight: 500;
-        }
+        .hrc-item-name { font-size: 13.5px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hrc-item-sub { font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+        .hrc-item-job { font-size: 10.5px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; font-weight: 500; }
 
-        .hrc-no-result {
-          text-align: center; padding: 32px 16px;
-          color: var(--text-muted); font-size: 13px;
-        }
+        .hrc-no-result { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 13px; }
 
-        /* Chat area */
         .hrc-chat { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); transition: background 0.25s; }
 
         .hrc-chat-header {
@@ -527,7 +548,6 @@ export default function HRChatPage() {
         .hrc-chat-hsub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
         .hrc-chat-hactions { display: flex; align-items: center; gap: 4px; }
 
-        /* Messages */
         .hrc-messages {
           flex: 1; overflow-y: auto;
           padding: 20px 24px 12px;
@@ -552,123 +572,49 @@ export default function HRChatPage() {
           font-size: 14px; line-height: 1.6; word-break: break-word;
           display: inline-block; max-width: 100%;
         }
-        .hrc-bubble.out {
-          background: var(--bubble-out); color: var(--bubble-out-text);
-          border-bottom-right-radius: 5px;
-        }
-        .hrc-bubble.in {
-          background: var(--bubble-in); color: var(--bubble-in-text);
-          border-bottom-left-radius: 5px;
-        }
-        .hrc-msg-time {
-          font-size: 10.5px; color: var(--text-muted);
-          margin-top: 4px; padding: 0 4px; display: block;
-        }
+        .hrc-bubble.out { background: var(--bubble-out); color: var(--bubble-out-text); border-bottom-right-radius: 5px; }
+        .hrc-bubble.in  { background: var(--bubble-in);  color: var(--bubble-in-text);  border-bottom-left-radius: 5px; }
+        .hrc-msg-time { font-size: 10.5px; color: var(--text-muted); margin-top: 4px; padding: 0 4px; display: block; }
+
+        /* Optimistic message styling */
+        .hrc-msg-row.optimistic .hrc-bubble { opacity: 0.7; }
 
         .hrc-att-thumb { width: 170px; border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
         .hrc-att-thumb img { width: 100%; display: block; }
-        .hrc-att-doc {
-          display: flex; align-items: center; gap: 7px;
-          background: rgba(255,255,255,0.13); padding: 7px 10px;
-          border-radius: 8px; margin-bottom: 5px; font-size: 12px;
-        }
+        .hrc-att-doc { display: flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.13); padding: 7px 10px; border-radius: 8px; margin-bottom: 5px; font-size: 12px; }
 
-        /* Empty */
-        .hrc-empty {
-          flex: 1; display: flex; flex-direction: column;
-          align-items: center; justify-content: center; gap: 12px;
-        }
-        .hrc-empty-icon {
-          width: 68px; height: 68px; border-radius: 20px;
-          background: var(--bg-tertiary);
-          display: flex; align-items: center; justify-content: center;
-        }
+        .hrc-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+        .hrc-empty-icon { width: 68px; height: 68px; border-radius: 20px; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; }
         .hrc-empty-title { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
         .hrc-empty-sub { font-size: 13px; text-align: center; max-width: 220px; line-height: 1.5; color: var(--text-muted); }
 
-        /* Input */
-        .hrc-input-area {
-          padding: 10px 18px 18px;
-          background: var(--bg-primary);
-          border-top: 1px solid var(--border);
-          flex-shrink: 0;
-        }
-        .hrc-att-preview {
-          display: flex; align-items: center; gap: 10px;
-          background: var(--accent-light);
-          border: 1px solid var(--accent);
-          border-radius: 10px; padding: 7px 11px; margin-bottom: 8px;
-        }
-        .hrc-att-preview-name {
-          font-size: 13px; font-weight: 500; color: var(--accent);
-          flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
+        .hrc-input-area { padding: 10px 18px 18px; background: var(--bg-primary); border-top: 1px solid var(--border); flex-shrink: 0; }
+        .hrc-att-preview { display: flex; align-items: center; gap: 10px; background: var(--accent-light); border: 1px solid var(--accent); border-radius: 10px; padding: 7px 11px; margin-bottom: 8px; }
+        .hrc-att-preview-name { font-size: 13px; font-weight: 500; color: var(--accent); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .hrc-att-preview-img { width: 38px; height: 38px; border-radius: 6px; object-fit: cover; }
-        .hrc-att-remove {
-          width: 22px; height: 22px; border-radius: 6px; border: none;
-          background: transparent; cursor: pointer; color: var(--accent);
-          display: flex; align-items: center; justify-content: center; padding: 0;
-          transition: background 0.15s;
-        }
+        .hrc-att-remove { width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent; cursor: pointer; color: var(--accent); display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.15s; }
         .hrc-att-remove:hover { background: var(--accent-light); }
-        .hrc-input-row {
-          display: flex; align-items: flex-end; gap: 8px;
-          background: var(--input-bg);
-          border: 1px solid var(--border-strong);
-          border-radius: 15px;
-          padding: 7px 7px 7px 13px;
-          transition: border 0.15s;
-        }
+        .hrc-input-row { display: flex; align-items: flex-end; gap: 8px; background: var(--input-bg); border: 1px solid var(--border-strong); border-radius: 15px; padding: 7px 7px 7px 13px; transition: border 0.15s; }
         .hrc-input-row:focus-within { border-color: var(--accent); }
-        .hrc-textarea {
-          flex: 1; background: transparent; border: none; outline: none;
-          font-family: 'DM Sans', sans-serif; font-size: 14px;
-          color: var(--text-primary); resize: none; line-height: 1.55;
-          padding: 3px 0; min-height: 22px; max-height: 120px;
-        }
+        .hrc-textarea { flex: 1; background: transparent; border: none; outline: none; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text-primary); resize: none; line-height: 1.55; padding: 3px 0; min-height: 22px; max-height: 120px; }
         .hrc-textarea::placeholder { color: var(--text-muted); }
-        .hrc-send-btn {
-          width: 36px; height: 36px; border-radius: 11px; border: none;
-          background: var(--accent); color: #fff; cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0; transition: opacity 0.15s, transform 0.1s;
-        }
+        .hrc-send-btn { width: 36px; height: 36px; border-radius: 11px; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.15s, transform 0.1s; }
         .hrc-send-btn:hover { opacity: 0.88; }
         .hrc-send-btn:active { transform: scale(0.93); }
         .hrc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .hrc-attach-btn {
-          width: 30px; height: 30px; border-radius: 8px; border: none;
-          background: transparent; cursor: pointer; color: var(--text-muted);
-          display: flex; align-items: center; justify-content: center;
-          padding: 0; flex-shrink: 0; transition: color 0.15s, background 0.15s;
-        }
+        .hrc-attach-btn { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; transition: color 0.15s, background 0.15s; }
         .hrc-attach-btn:hover { color: var(--accent); background: var(--accent-light); }
 
-        /* Skeleton */
-        .skeleton {
-          background: var(--skeleton);
-          animation: shimmer 1.4s infinite;
-          background: linear-gradient(90deg, var(--skeleton) 25%, var(--bg-hover) 50%, var(--skeleton) 75%);
-          background-size: 200% 100%;
-        }
+        .skeleton { background: var(--skeleton); animation: shimmer 1.4s infinite; background: linear-gradient(90deg, var(--skeleton) 25%, var(--bg-hover) 50%, var(--skeleton) 75%); background-size: 200% 100%; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-        /* Responsive */
         @media (max-width: 768px) {
-          .hrc-sidebar {
-            width: 100%; min-width: unset;
-            position: absolute; inset: 0; z-index: 10; border-right: none;
-          }
+          .hrc-sidebar { width: 100%; min-width: unset; position: absolute; inset: 0; z-index: 10; border-right: none; }
           .hrc-sidebar.hrc-hidden { display: none; }
           .hrc-back-btn { display: flex !important; }
           .hrc-bubble { max-width: 80%; }
         }
-        .hrc-back-btn {
-          display: none; align-items: center; justify-content: center;
-          width: 34px; height: 34px; border-radius: 9px;
-          border: 1px solid var(--border-strong); background: transparent;
-          cursor: pointer; color: var(--text-secondary);
-        }
+        .hrc-back-btn { display: none; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-strong); background: transparent; cursor: pointer; color: var(--text-secondary); }
         .hrc-back-btn:hover { background: var(--bg-hover); }
       `}</style>
 
@@ -746,7 +692,6 @@ export default function HRChatPage() {
       <main className="hrc-chat">
         {selectedUser ? (
           <>
-            {/* Header */}
             <div className="hrc-chat-header">
               <button
                 className="hrc-back-btn"
@@ -789,9 +734,8 @@ export default function HRChatPage() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="hrc-messages">
-              {messages.length === 0 && (
+              {localMessages.length === 0 && (
                 <div
                   style={{
                     textAlign: "center",
@@ -809,12 +753,13 @@ export default function HRChatPage() {
                 <div className="hrc-date-line" />
               </div>
 
-              {messages.map((msg) => {
+              {localMessages.map((msg) => {
                 const out = isOutgoing(msg);
+                const isOptimistic = msg._id.startsWith("temp_");
                 return (
                   <div
                     key={msg._id}
-                    className={`hrc-msg-row ${out ? "out" : "in"}`}
+                    className={`hrc-msg-row ${out ? "out" : "in"} ${isOptimistic ? "optimistic" : ""}`}
                   >
                     {!out && (
                       <Avatar
@@ -824,7 +769,7 @@ export default function HRChatPage() {
                         size={26}
                       />
                     )}
-                    <div>
+                    <div className="hrc-msg-content">
                       <div className={`hrc-bubble ${out ? "out" : "in"}`}>
                         {msg.attachments?.map((att, j) =>
                           att.type === "image" ? (
@@ -832,8 +777,9 @@ export default function HRChatPage() {
                               <Image
                                 src={att.url}
                                 alt={att.name}
-                                width={64}
-                                height={64}
+                                width={170}
+                                height={120}
+                                style={{ width: "100%", height: "auto" }}
                               />
                             </div>
                           ) : (
@@ -844,10 +790,10 @@ export default function HRChatPage() {
                           ),
                         )}
                         {msg.message}
-                        <span className="hrc-msg-time">
-                          {formatTime(msg.createdAt)}
-                        </span>
                       </div>
+                      <span className="hrc-msg-time">
+                        {isOptimistic ? "Sending…" : formatTime(msg.createdAt)}
+                      </span>
                     </div>
                     {out && (
                       <Avatar name={hrName} seed={hrId ?? "hr"} size={26} />
@@ -858,7 +804,6 @@ export default function HRChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div className="hrc-input-area">
               {attachment && (
                 <div className="hrc-att-preview">
@@ -867,8 +812,14 @@ export default function HRChatPage() {
                       src={attachment.previewUrl}
                       className="hrc-att-preview-img"
                       alt="preview"
-                      width={64}
-                      height={64}
+                      width={38}
+                      height={38}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        objectFit: "cover",
+                        borderRadius: 6,
+                      }}
                     />
                   ) : (
                     getAttachmentIcon(attachment.type)
@@ -924,7 +875,6 @@ export default function HRChatPage() {
             </div>
           </>
         ) : (
-          /* Empty state */
           <div className="hrc-empty">
             <div className="hrc-empty-icon">
               <svg
