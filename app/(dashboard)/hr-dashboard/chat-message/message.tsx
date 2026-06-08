@@ -246,7 +246,7 @@ export default function HRChatPage() {
     },
     { skip: !hrId },
   );
-
+  console.log("Applications data:", appData);
   const rawAppData =
     appData?.data?.data ??
     appData?.data?.applications ??
@@ -254,7 +254,7 @@ export default function HRChatPage() {
     appData ??
     [];
   const applications: any[] = Array.isArray(rawAppData) ? rawAppData : [];
-
+  console.log("Parsed applications:", applications);
   /* ── Messages for selected conversation ── */
   const { data: msgData, refetch: refetchMessages } = useGetChatMessagesQuery(
     selectedUser?.applicationId,
@@ -262,7 +262,7 @@ export default function HRChatPage() {
       skip: !selectedUser,
     },
   );
-
+  console.log("Chat messages data:", msgData);
   const [sendMessage] = useCreateChatMessageMutation();
   const rawMessages =
     msgData?.data?.messages ??
@@ -316,7 +316,7 @@ export default function HRChatPage() {
     setSending(true);
     try {
       await sendMessage({
-        receiverId: selectedUser.email,
+        receiverId: selectedUser.userId,
         applicationId: selectedUser.applicationId,
         message: text,
         ...(attachment ? { file: attachment.file } : {}),
