@@ -40,7 +40,7 @@ type Attachment = {
 
 type Conversation = {
   applicationId: string;
-  hrId: string;
+  hrId: string | { _id: string };
   hrName: string;
   hrEmail: string;
   hrAvatar?: string;
@@ -326,6 +326,11 @@ export default function UserChatPage() {
   function toConversation(app: any): Conversation {
     const job = app?.jobId ?? {};
     const company = job?.company ?? {};
+    console.log(app);
+    console.log(job);
+    console.log("hrId =", job?.hrId);
+    console.log("createdBy =", job?.createdBy);
+    console.log("companyId =", company?._id);
     return {
       applicationId: app?._id,
       hrId: job?.hrId ?? job?.createdBy ?? company?._id ?? "",
@@ -367,12 +372,16 @@ export default function UserChatPage() {
   useEffect(() => {
     if (!userId) return;
 
-    // User নিজের userId দিয়ে register করো
-    socket.emit("register", userId);
+    socket.on("connect", () => {
+      socket.emit("register", userId);
+      if (selectedConv?.applicationId) {
+        socket.emit("joinRoom", selectedConv.applicationId);
+      }
+    });
 
     const handleNewMessage = (newMsg: Message) => {
       const current = selectedConvRef.current;
-      // বর্তমান চ্যাটের মেসেজ না হলে ignore
+
       if (
         !current ||
         String(newMsg.applicationId) !== String(current.applicationId)
@@ -452,7 +461,11 @@ export default function UserChatPage() {
 
     try {
       const result = await sendMessage({
-        receiverId: selectedConv.hrId,
+        receiverId:
+          typeof selectedConv.hrId === "object"
+            ? selectedConv.hrId._id
+            : selectedConv.hrId,
+
         applicationId: selectedConv.applicationId,
         message: text,
         ...(attachment ? { file: attachment.file } : {}),

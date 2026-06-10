@@ -34,13 +34,16 @@ export const applicationApi = createApi({
       invalidatesTags: ["Application"],
     }),
     getApplications: builder.query({
-      query: ({ hrId, search, status, page }) => {
+      // 💡 এখানে destructuring-এ 'applicationId' রিসিভ করা হলো
+      query: ({ hrId, search, status, page, applicationId }) => {
         const params = new URLSearchParams();
 
         if (hrId) params.append("hrId", hrId);
         if (search) params.append("search", search);
         if (status) params.append("status", status);
         if (page) params.append("page", page);
+        // 💡 এখানে কুয়েরি প্যারামিটারে 'applicationId' যুক্ত করা হলো
+        if (applicationId) params.append("applicationId", applicationId);
 
         return {
           url: `applications?${params.toString()}`,

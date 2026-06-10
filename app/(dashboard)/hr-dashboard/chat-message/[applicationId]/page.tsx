@@ -4,6 +4,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Send,
   Search,
@@ -19,6 +20,7 @@ import {
   Video,
   MoreVertical,
   Users,
+  ArrowLeft,
 } from "lucide-react";
 import { useGetMeQuery } from "@/app/redux/features/auth/authApi";
 import { useGetApplicationsQuery } from "@/app/redux/features/application/application-api";
@@ -221,6 +223,9 @@ function SkeletonItem() {
 /* ──────────────────────── Main ──────────────────────────────── */
 
 export default function HRChatPage() {
+  const searchParams = useSearchParams();
+  const urlApplicationId = searchParams.get("applicationId");
+
   const [dark, setDark] = useState(true);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [search, setSearch] = useState("");
@@ -229,13 +234,13 @@ export default function HRChatPage() {
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [sending, setSending] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // selectedUser ref — socket handler-এ stale closure এড়াতে
   const selectedUserRef = useRef<SelectedUser | null>(null);
+
   useEffect(() => {
     selectedUserRef.current = selectedUser;
   }, [selectedUser]);
@@ -248,8 +253,14 @@ export default function HRChatPage() {
   const hrName: string = meData?.data?.user?.name ?? "HR";
 
   /* ── Applications list ── */
+  // 💡 পাস করা হলো applicationId প্রপার্টি ব্যাকএন্ড ফিল্টারের সাথে ম্যাচ করার জন্য
   const { data: appData, isLoading: appLoading } = useGetApplicationsQuery(
-    { hrId, search: debouncedSearch || undefined, page },
+    {
+      hrId,
+      search: debouncedSearch || undefined,
+      page,
+      applicationId: urlApplicationId || undefined,
+    },
     { skip: !hrId },
   );
 
@@ -261,7 +272,24 @@ export default function HRChatPage() {
     [];
   const applications: any[] = Array.isArray(rawAppData) ? rawAppData : [];
 
-  /* ── Messages for selected conversation (initial DB load) ── */
+  /* ══════════════════════════════════════════════════
+     URL applicationId থেকে auto-select user
+  ══════════════════════════════════════════════════ */
+  useEffect(() => {
+    if (!urlApplicationId || applications.length === 0) return;
+    if (selectedUser?.applicationId === urlApplicationId) return;
+
+    const matched = applications.find(
+      (app: any) => String(app._id) === String(urlApplicationId),
+    );
+    if (matched) {
+      const su = toSelectedUser(matched);
+      setSelectedUser(su);
+      setSidebarOpen(false);
+    }
+  }, [urlApplicationId, applications]);
+
+  /* ── Messages for selected conversation ── */
   const { data: msgData, refetch } = useGetChatMessagesQuery(
     selectedUser?.applicationId,
     { skip: !selectedUser },
@@ -269,7 +297,7 @@ export default function HRChatPage() {
 
   const [sendMessage] = useCreateChatMessageMutation();
 
-  /* ── DB থেকে initial messages load হলে localMessages সেট করো ── */
+  /* ── DB থেকে initial messages load ── */
   useEffect(() => {
     if (!msgData) return;
     const incoming: Message[] = Array.isArray(msgData.data)
@@ -278,15 +306,14 @@ export default function HRChatPage() {
     setLocalMessages(incoming);
   }, [msgData]);
 
-  /* ── Conversation change হলে localMessages clear করো ── */
+  /* ── Conversation change হলে clear ── */
   useEffect(() => {
     setLocalMessages([]);
   }, [selectedUser?.applicationId]);
 
   /* ══════════════════════════════════════════════════
-     SOCKET.IO — real-time setup (FIX: একবার mount-এ listener বসাও)
+     SOCKET.IO
   ══════════════════════════════════════════════════ */
-
   useEffect(() => {
     if (!hrId) return;
 
@@ -299,25 +326,22 @@ export default function HRChatPage() {
 
     const handleNewMessage = (newMsg: Message) => {
       const current = selectedUserRef.current;
-      // বর্তমান চ্যাটের মেসেজ না হলে ignore
       if (
         !current ||
         String(newMsg.applicationId) !== String(current.applicationId)
-      ) {
+      )
         return;
-      }
       setLocalMessages((prev) => {
-        if (prev.some((m) => m._id === newMsg._id)) return prev; // duplicate এড়াও
+        if (prev.some((m) => m._id === newMsg._id)) return prev;
         return [...prev, newMsg];
       });
     };
 
     socket.on("newMessage", handleNewMessage);
-
     return () => {
       socket.off("newMessage", handleNewMessage);
     };
-  }, [hrId]); // ✅ শুধু hrId-এর উপর depend করো, selectedUser নয়
+  }, [hrId]);
 
   /* ── Room join/leave ── */
   useEffect(() => {
@@ -344,7 +368,6 @@ export default function HRChatPage() {
       attachments: [],
     };
 
-    // Optimistic UI — নিজের message সাথে সাথে দেখাও
     setLocalMessages((prev) => [...prev, optimisticMsg]);
 
     try {
@@ -355,7 +378,6 @@ export default function HRChatPage() {
         ...(attachment ? { file: attachment.file } : {}),
       }).unwrap();
 
-      // সার্ভার থেকে আসা real message দিয়ে optimistic message replace করো
       const sentMsg =
         result?.data?.message ?? result?.data ?? result?.message ?? result;
 
@@ -370,7 +392,6 @@ export default function HRChatPage() {
       refetch();
     } catch (error) {
       console.error("Failed to send message:", error);
-
       setLocalMessages((prev) => prev.filter((m) => m._id !== optimisticId));
     } finally {
       setSending(false);
@@ -427,6 +448,25 @@ export default function HRChatPage() {
     return sid === hrId;
   };
 
+  /* ── Select user handler (sidebar click) ── */
+  const handleSelectUser = (app: any) => {
+    const su = toSelectedUser(app);
+    setSelectedUser(su);
+    setSidebarOpen(false);
+  };
+
+  /* ── Back button (mobile) ── */
+  const handleBack = () => {
+    setSelectedUser(null);
+    setSidebarOpen(true);
+  };
+
+  const displayedApplications = urlApplicationId
+    ? applications.filter(
+        (app: any) => String(app._id) === String(urlApplicationId),
+      )
+    : applications;
+
   /* theme tokens */
   const theme = dark
     ? {
@@ -442,8 +482,8 @@ export default function HRChatPage() {
         "--border-strong": "rgba(255,255,255,0.12)",
         "--accent": "#3b82f6",
         "--accent-light": "rgba(59,130,246,0.15)",
-        "--bubble-in": "#1e2a42",
         "--bubble-out": "#3b82f6",
+        "--bubble-in": "#1e2a42",
         "--bubble-out-text": "#ffffff",
         "--bubble-in-text": "#e2e8f0",
         "--input-bg": "#1e2536",
@@ -489,6 +529,7 @@ export default function HRChatPage() {
           border-right: 1px solid var(--border-strong);
           display: flex; flex-direction: column;
           background: var(--bg-secondary); transition: background 0.25s;
+          flex-shrink: 0;
         }
         .hrc-sidebar-header {
           padding: 18px 18px 12px; border-bottom: 1px solid var(--border);
@@ -580,7 +621,6 @@ export default function HRChatPage() {
         .hrc-bubble.in  { background: var(--bubble-in);  color: var(--bubble-in-text);  border-bottom-left-radius: 5px; }
         .hrc-msg-time { font-size: 10.5px; color: var(--text-muted); margin-top: 4px; padding: 0 4px; display: block; }
 
-        /* Optimistic message styling */
         .hrc-msg-row.optimistic .hrc-bubble { opacity: 0.7; }
 
         .hrc-att-thumb { width: 170px; border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
@@ -612,22 +652,48 @@ export default function HRChatPage() {
         .skeleton { background: var(--skeleton); animation: shimmer 1.4s infinite; background: linear-gradient(90deg, var(--skeleton) 25%, var(--bg-hover) 50%, var(--skeleton) 75%); background-size: 200% 100%; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+        /* ── Mobile Responsive ── */
         @media (max-width: 768px) {
-          .hrc-sidebar { width: 100%; min-width: unset; position: absolute; inset: 0; z-index: 10; border-right: none; }
-          .hrc-sidebar.hrc-hidden { display: none; }
-          .hrc-back-btn { display: flex !important; }
+          .hrc-sidebar {
+            width: 100%;
+            min-width: unset;
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            border-right: none;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+          }
+          .hrc-sidebar.mobile-hidden {
+            transform: translateX(-100%);
+            opacity: 0;
+            pointer-events: none;
+          }
+          .hrc-mobile-back { display: flex !important; }
           .hrc-bubble { max-width: 80%; }
         }
-        .hrc-back-btn { display: none; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-strong); background: transparent; cursor: pointer; color: var(--text-secondary); }
-        .hrc-back-btn:hover { background: var(--bg-hover); }
+
+        .hrc-mobile-back {
+          display: none;
+          align-items: center;
+          justify-content: center;
+          width: 34px; height: 34px;
+          border-radius: 9px;
+          border: 1px solid var(--border-strong);
+          background: transparent;
+          cursor: pointer;
+          color: var(--text-secondary);
+          transition: background 0.15s;
+          flex-shrink: 0;
+        }
+        .hrc-mobile-back:hover { background: var(--bg-hover); color: var(--text-primary); }
       `}</style>
 
       {/* ══════════ SIDEBAR ══════════ */}
-      <aside className={`hrc-sidebar ${selectedUser ? "hrc-hidden" : ""}`}>
+      <aside className={`hrc-sidebar ${!sidebarOpen ? "mobile-hidden" : ""}`}>
         <div className="hrc-sidebar-header">
           <span className="hrc-sidebar-title">Candidates</span>
-          {applications.length > 0 && (
-            <span className="hrc-count">{applications.length}</span>
+          {displayedApplications.length > 0 && (
+            <span className="hrc-count">{displayedApplications.length}</span>
           )}
           <button
             className="hrc-icon-btn"
@@ -651,7 +717,7 @@ export default function HRChatPage() {
         <div className="hrc-list">
           {appLoading ? (
             Array.from({ length: 5 }).map((_, i) => <SkeletonItem key={i} />)
-          ) : applications.length === 0 ? (
+          ) : displayedApplications.length === 0 ? (
             <div className="hrc-no-result">
               <Users size={28} style={{ marginBottom: 8, opacity: 0.35 }} />
               <div>No applicants found</div>
@@ -659,9 +725,9 @@ export default function HRChatPage() {
           ) : (
             <>
               <div className="hrc-section-label">
-                Interview Queue · {applications.length}
+                Interview Queue · {displayedApplications.length}
               </div>
-              {applications.map((app: any) => {
+              {displayedApplications.map((app: any) => {
                 const su = toSelectedUser(app);
                 const isActive =
                   selectedUser?.applicationId === su.applicationId;
@@ -669,7 +735,7 @@ export default function HRChatPage() {
                   <div
                     key={su.applicationId}
                     className={`hrc-item ${isActive ? "active" : ""}`}
-                    onClick={() => setSelectedUser(su)}
+                    onClick={() => handleSelectUser(app)}
                   >
                     <Avatar
                       name={su.name}
@@ -697,13 +763,15 @@ export default function HRChatPage() {
         {selectedUser ? (
           <>
             <div className="hrc-chat-header">
+              {/* Mobile back button */}
               <button
-                className="hrc-back-btn"
-                onClick={() => setSelectedUser(null)}
-                title="Back"
+                className="hrc-mobile-back"
+                onClick={handleBack}
+                title="Back to list"
               >
-                ←
+                <ArrowLeft size={16} />
               </button>
+
               <Avatar
                 name={selectedUser.name}
                 avatarUrl={selectedUser.avatar}
@@ -812,18 +880,10 @@ export default function HRChatPage() {
               {attachment && (
                 <div className="hrc-att-preview">
                   {attachment.previewUrl ? (
-                    <Image
+                    <img
                       src={attachment.previewUrl}
-                      className="hrc-att-preview-img"
                       alt="preview"
-                      width={38}
-                      height={38}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        objectFit: "cover",
-                        borderRadius: 6,
-                      }}
+                      className="hrc-att-preview-img"
                     />
                   ) : (
                     getAttachmentIcon(attachment.type)
@@ -835,44 +895,46 @@ export default function HRChatPage() {
                     className="hrc-att-remove"
                     onClick={() => setAttachment(null)}
                   >
-                    <X size={13} />
+                    <X size={14} />
                   </button>
                 </div>
               )}
+
               <div className="hrc-input-row">
                 <input
                   type="file"
                   ref={fileInputRef}
                   style={{ display: "none" }}
-                  accept="image/*,.pdf,.doc,.docx"
                   onChange={handleFileChange}
                 />
                 <button
                   className="hrc-attach-btn"
-                  title="Attach file"
                   onClick={() => fileInputRef.current?.click()}
+                  title="Attach file"
                 >
-                  <Paperclip size={17} />
+                  <Paperclip size={18} />
                 </button>
+
                 <textarea
                   ref={textareaRef}
                   className="hrc-textarea"
-                  placeholder="Type a message… (Enter to send)"
+                  placeholder="Type a message…"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   rows={1}
                 />
+
                 <button
                   className="hrc-send-btn"
                   onClick={handleSend}
                   disabled={sending || (!text.trim() && !attachment)}
-                  title="Send"
+                  title="Send message"
                 >
                   {sending ? (
-                    <Loader2 size={15} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Send size={15} />
+                    <Send size={16} />
                   )}
                 </button>
               </div>
@@ -881,23 +943,12 @@ export default function HRChatPage() {
         ) : (
           <div className="hrc-empty">
             <div className="hrc-empty-icon">
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--text-muted)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-              </svg>
+              <Users size={32} style={{ opacity: 0.4 }} />
             </div>
-            <span className="hrc-empty-title">No conversation selected</span>
-            <span className="hrc-empty-sub">
+            <div className="hrc-empty-title">No conversation selected</div>
+            <div className="hrc-empty-sub">
               Select a candidate from the list to begin chatting.
-            </span>
+            </div>
           </div>
         )}
       </main>

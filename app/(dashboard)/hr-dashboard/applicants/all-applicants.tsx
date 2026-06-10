@@ -68,6 +68,7 @@ import {
   Library,
   Edit,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import { useGetMeQuery } from "@/app/redux/features/auth/authApi";
 import {
@@ -76,6 +77,7 @@ import {
 } from "@/app/redux/features/application/application-api";
 import toast from "react-hot-toast";
 import { HrApplicantsSkeleton } from "./skeliton";
+import { useRouter } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -812,7 +814,11 @@ export default function HrApplicants() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
 
   const debouncedSearch = search;
+  const router = useRouter(); // import { useRouter } from "next/navigation"
 
+  const handleMessage = (applicant: Applicant) => {
+    router.push(`/hr-dashboard/chat-message?applicationId=${applicant._id}`);
+  };
   const { data: me } = useGetMeQuery();
   const hrId = me?.data?.user?._id;
 
@@ -1174,6 +1180,21 @@ export default function HrApplicants() {
                         <Eye className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline cursor-pointer">
                           View
+                        </span>
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-xs text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMessage(applicant);
+                        }}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline cursor-pointer">
+                          Message
                         </span>
                       </Button>
                     </TableCell>

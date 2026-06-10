@@ -22,7 +22,7 @@ export default function NotificationDropdown() {
   const userId = getme?.data?.user?._id;
   // GET notifications
   const { data, isLoading } = useGetNotificationsQuery(userId, {
-    pollingInterval: 10000,
+    pollingInterval: 5000,
     skip: !userId,
   });
 
