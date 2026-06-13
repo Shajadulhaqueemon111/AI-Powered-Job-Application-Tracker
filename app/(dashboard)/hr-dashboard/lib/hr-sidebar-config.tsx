@@ -48,11 +48,11 @@ export const hrSidebar = {
       url: "/hr-dashboard/analytics",
       icon: <BarChart3Icon />,
     },
-    {
-      title: "Messages",
-      url: "/hr-dashboard/chat-message",
-      icon: <MessageCircleIcon />,
-    },
+    // {
+    //   title: "Messages",
+    //   url: "/hr-dashboard/chat-message",
+    //   icon: <MessageCircleIcon />,
+    // },
     {
       title: "Notifications",
       url: "/hr-dashboard/notifications",

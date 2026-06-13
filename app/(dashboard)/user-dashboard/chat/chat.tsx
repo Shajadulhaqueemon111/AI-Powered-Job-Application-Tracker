@@ -23,10 +23,12 @@ import { useGetMeQuery } from "@/app/redux/features/auth/authApi";
 import { useGetApplicationsQuery } from "@/app/redux/features/application/application-api";
 import {
   useCreateChatMessageMutation,
+  useGetActiveApplicationIdsQuery,
   useGetChatMessagesQuery,
+  useGetChatSummaryQuery,
 } from "@/app/redux/features/chat-message/message";
 import Image from "next/image";
-import { socket } from "@/app/lib/soket"; // ✅ socket import যোগ করা হয়েছে
+import { socket } from "@/app/lib/soket";
 
 /* ───────────────────────── Types ───────────────────────────── */
 
@@ -47,17 +49,21 @@ type Conversation = {
   companyName?: string;
   companyLogo?: string;
   jobTitle?: string;
+  status?: string;
 };
 
 type Message = {
   _id: string;
   senderId: any;
-  applicationId?: string; // ✅ applicationId যোগ করা হয়েছে
+  applicationId?: string;
   receiverId: any;
   message: string;
   createdAt: string;
   attachments?: { url: string; type: AttachmentType; name: string }[];
 };
+
+// ✅ এই status গুলোতে messaging বন্ধ থাকবে এবং sidebar-এ দেখাবে না
+const BLOCKED_STATUSES = ["rejected"];
 
 /* ───────────────────────── Hooks ───────────────────────────── */
 
@@ -124,6 +130,7 @@ const AVATAR_COLORS = [
   "#06b6d4",
   "#84cc16",
 ];
+
 function avatarColor(seed: string) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = seed.charCodeAt(i) + ((h << 5) - h);
@@ -286,21 +293,27 @@ function CompanyBadge({
 /* ───────────────────────── Main Component ──────────────────── */
 
 export default function UserChatPage() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
   const [text, setText] = useState("");
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [sending, setSending] = useState(false);
-
-  // ✅ localMessages state — socket real-time update এখানে হবে
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+
+  // ✅ unread counts — key: applicationId, value: count
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  // ✅ last message per conversation — key: applicationId
+  const [lastMessages, setLastMessages] = useState<
+    Record<string, { text: string; time: string; fromMe: boolean }>
+  >({});
+  // ✅ summary already loaded হয়েছে কিনা (একবারই load করবো)
+  const summaryLoadedRef = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // ✅ selectedConv ref — socket handler-এ stale closure এড়াতে
   const selectedConvRef = useRef<Conversation | null>(null);
+
   useEffect(() => {
     selectedConvRef.current = selectedConv;
   }, [selectedConv]);
@@ -323,85 +336,214 @@ export default function UserChatPage() {
     [];
   const applications: any[] = Array.isArray(rawApps) ? rawApps : [];
 
+  /* ✅ message আছে এমন applicationId গুলো */
+  const { data: activeIds = [], isLoading: activeLoading } =
+    useGetActiveApplicationIdsQuery(userId!, { skip: !userId });
+
+  /* ✅ message আছে + rejected নয় এমন applications */
+  const applicationsWithMessages = applications.filter((app) => {
+    const hasMessage = activeIds.map(String).includes(String(app._id));
+    const isBlocked = BLOCKED_STATUSES.includes(app?.status ?? "");
+    return hasMessage && !isBlocked;
+  });
+
+  const isListLoading = appLoading || activeLoading;
+
+  /* ✅ status সহ toConversation */
   function toConversation(app: any): Conversation {
     const job = app?.jobId ?? {};
     const company = job?.company ?? {};
-    console.log(app);
-    console.log(job);
-    console.log("hrId =", job?.hrId);
-    console.log("createdBy =", job?.createdBy);
-    console.log("companyId =", company?._id);
+    const createdBy = job?.createdBy;
+    const hrId = createdBy?._id ?? "";
     return {
       applicationId: app?._id,
-      hrId: job?.hrId ?? job?.createdBy ?? company?._id ?? "",
-      hrName: company?.name ?? job?.hrName ?? "HR Team",
-      hrEmail: job?.hrEmail ?? company?.email ?? "",
-      hrAvatar: company?.logo,
-      companyName: company?.name,
-      companyLogo: company?.logo,
-      jobTitle: job?.title ?? app?.jobTitle ?? "",
+      hrId: hrId,
+      hrName: createdBy?.name ?? "HR Team",
+      hrEmail: createdBy?.email ?? "",
+      hrAvatar: createdBy?.avatar,
+      companyName:
+        typeof company === "string" ? company : (company?.name ?? "Company"),
+      companyLogo: typeof company === "object" ? company?.logo : undefined,
+      jobTitle: job?.title ?? "",
+      status: app?.status ?? "pending",
     };
   }
 
-  /* Messages — initial DB load */
+  /* ✅ Chat Summary — sidebar-এর জন্য last message + unread count */
+  const { data: chatSummary } = useGetChatSummaryQuery(userId!, {
+    skip: !userId,
+    pollingInterval: 8000, // ৮ সেকেন্ডে refresh
+  });
+
+  // ✅ summary data দিয়ে lastMessages ও unreadCounts initialize করো
+  useEffect(() => {
+    if (!chatSummary || summaryLoadedRef.current) return;
+    const newLastMessages: Record<
+      string,
+      { text: string; time: string; fromMe: boolean }
+    > = {};
+    const newUnread: Record<string, number> = {};
+    chatSummary.forEach((item: any) => {
+      if (item.lastMessage) {
+        newLastMessages[item.applicationId] = {
+          text: item.lastMessage.hasAttachment
+            ? "📎 Attachment"
+            : item.lastMessage.text,
+          time: item.lastMessage.time,
+          fromMe: item.lastMessage.fromMe,
+        };
+      }
+      if (item.unreadCount > 0) {
+        newUnread[item.applicationId] = item.unreadCount;
+      }
+    });
+    setLastMessages(newLastMessages);
+    setUnreadCounts(newUnread);
+    summaryLoadedRef.current = true;
+  }, [chatSummary]);
+
+  // ✅ polling-এ unread count update করো (কিন্তু open conversation-এর টা clear রাখো)
+  useEffect(() => {
+    if (!chatSummary || !summaryLoadedRef.current) return;
+    setUnreadCounts((prev) => {
+      const updated = { ...prev };
+
+      chatSummary.forEach((item: any) => {
+        if (selectedConv?.applicationId === item.applicationId) {
+          updated[item.applicationId] = 0;
+        } else {
+          updated[item.applicationId] = item.unreadCount;
+        }
+      });
+
+      return updated;
+    });
+    // last messages ও update করো
+    setLastMessages((prev) => {
+      const updated = { ...prev };
+      chatSummary.forEach((item: any) => {
+        if (item.lastMessage) {
+          const existing = prev[item.applicationId];
+          if (
+            !existing ||
+            new Date(item.lastMessage.time) > new Date(existing.time)
+          ) {
+            updated[item.applicationId] = {
+              text: item.lastMessage.hasAttachment
+                ? "📎 Attachment"
+                : item.lastMessage.text,
+              time: item.lastMessage.time,
+              fromMe: item.lastMessage.fromMe,
+            };
+          }
+        }
+      });
+      return updated;
+    });
+  }, [chatSummary]);
+
+  /* Messages */
   const { data: msgData } = useGetChatMessagesQuery(
     selectedConv?.applicationId,
-    { skip: !selectedConv },
+    { pollingInterval: 3000, skip: !selectedConv },
   );
 
   const [sendMessage] = useCreateChatMessageMutation();
 
-  // ✅ DB থেকে messages load হলে localMessages সেট করো
   useEffect(() => {
     if (!msgData) return;
     const incoming: Message[] = Array.isArray(msgData.data)
       ? msgData.data
       : (msgData.data?.messages ?? msgData.data?.data ?? []);
     setLocalMessages(incoming);
+
+    // ✅ last message update করো active conversation-এর জন্য
+    if (selectedConv?.applicationId && incoming.length > 0) {
+      const last = incoming[incoming.length - 1];
+      const fromMe = (() => {
+        const sid =
+          typeof last.senderId === "object"
+            ? last.senderId?._id
+            : last.senderId;
+        return sid === userId;
+      })();
+      setLastMessages((prev) => ({
+        ...prev,
+        [selectedConv.applicationId]: {
+          text: last.attachments?.length ? "📎 Attachment" : last.message,
+          time: last.createdAt,
+          fromMe,
+        },
+      }));
+    }
   }, [msgData]);
 
-  // ✅ Conversation পরিবর্তন হলে localMessages clear করো
   useEffect(() => {
     setLocalMessages([]);
   }, [selectedConv?.applicationId]);
 
-  /* ══════════════════════════════════════════════════
-     SOCKET.IO — real-time setup
-  ══════════════════════════════════════════════════ */
+  // ✅ conversation open করলে unread count clear করো
+  useEffect(() => {
+    if (selectedConv?.applicationId) {
+      setUnreadCounts((prev) => ({ ...prev, [selectedConv.applicationId]: 0 }));
+    }
+  }, [selectedConv?.applicationId]);
 
+  /* Socket */
   useEffect(() => {
     if (!userId) return;
-
     socket.on("connect", () => {
       socket.emit("register", userId);
-      if (selectedConv?.applicationId) {
-        socket.emit("joinRoom", selectedConv.applicationId);
-      }
+      if (selectedConvRef.current?.applicationId)
+        socket.emit("joinRoom", selectedConvRef.current.applicationId);
     });
 
     const handleNewMessage = (newMsg: Message) => {
       const current = selectedConvRef.current;
+      const appId = String(newMsg.applicationId);
 
-      if (
-        !current ||
-        String(newMsg.applicationId) !== String(current.applicationId)
-      ) {
+      // ✅ last message সব conversation-এর জন্য update
+      const fromMe = (() => {
+        const sid =
+          typeof newMsg.senderId === "object"
+            ? newMsg.senderId?._id
+            : newMsg.senderId;
+        return sid === userId;
+      })();
+
+      setLastMessages((prev) => ({
+        ...prev,
+        [appId]: {
+          text: newMsg.attachments?.length ? "📎 Attachment" : newMsg.message,
+          time: newMsg.createdAt,
+          fromMe,
+        },
+      }));
+
+      // ✅ যদি এই conversation open না থাকে তাহলে unread বাড়াও
+      if (!current || String(current.applicationId) !== appId) {
+        if (!fromMe) {
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [appId]: (prev[appId] ?? 0) + 1,
+          }));
+        }
         return;
       }
+
+      // ✅ open conversation-এ message যোগ করো
       setLocalMessages((prev) => {
-        if (prev.some((m) => m._id === newMsg._id)) return prev; // duplicate এড়াও
+        if (prev.some((m) => m._id === newMsg._id)) return prev;
         return [...prev, newMsg];
       });
     };
 
     socket.on("newMessage", handleNewMessage);
-
     return () => {
       socket.off("newMessage", handleNewMessage);
     };
-  }, [userId]); // ✅ শুধু userId-এর উপর depend করো
+  }, [userId]);
 
-  // ✅ Room join/leave
   useEffect(() => {
     if (!selectedConv?.applicationId) return;
     socket.emit("joinRoom", selectedConv.applicationId);
@@ -410,12 +552,10 @@ export default function UserChatPage() {
     };
   }, [selectedConv?.applicationId]);
 
-  /* Scroll to bottom */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [localMessages]);
 
-  /* Auto-resize textarea */
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -440,10 +580,18 @@ export default function UserChatPage() {
     e.target.value = "";
   };
 
-  /* ✅ Send — with optimistic update */
+  /* ✅ Send — rejected হলে block */
   const handleSend = useCallback(async () => {
+    if (BLOCKED_STATUSES.includes(selectedConv?.status ?? "")) return;
     if ((!text.trim() && !attachment) || !selectedConv) return;
     setSending(true);
+
+    const msgText = text;
+    const msgAttachment = attachment;
+
+    // ✅ সাথে সাথে input clear করো (fast feel)
+    setText("");
+    setAttachment(null);
 
     const optimisticId = `temp_${Date.now()}`;
     const optimisticMsg: Message = {
@@ -451,13 +599,21 @@ export default function UserChatPage() {
       senderId: userId,
       receiverId: selectedConv.hrId,
       applicationId: selectedConv.applicationId,
-      message: text,
+      message: msgText,
       createdAt: new Date().toISOString(),
       attachments: [],
     };
-
-    // নিজের message সাথে সাথে দেখাও
     setLocalMessages((prev) => [...prev, optimisticMsg]);
+
+    // ✅ sidebar-এ last message তাৎক্ষণিক দেখাও
+    setLastMessages((prev) => ({
+      ...prev,
+      [selectedConv.applicationId]: {
+        text: msgAttachment ? "📎 Attachment" : msgText,
+        time: new Date().toISOString(),
+        fromMe: true,
+      },
+    }));
 
     try {
       const result = await sendMessage({
@@ -465,13 +621,10 @@ export default function UserChatPage() {
           typeof selectedConv.hrId === "object"
             ? selectedConv.hrId._id
             : selectedConv.hrId,
-
         applicationId: selectedConv.applicationId,
-        message: text,
-        ...(attachment ? { file: attachment.file } : {}),
+        message: msgText,
+        ...(msgAttachment ? { file: msgAttachment.file } : {}),
       }).unwrap();
-
-      // সার্ভার থেকে real message দিয়ে replace করো
       const sentMsg =
         result?.data?.message ?? result?.data ?? result?.message ?? result;
       if (sentMsg?._id) {
@@ -479,13 +632,11 @@ export default function UserChatPage() {
           prev.map((m) => (m._id === optimisticId ? sentMsg : m)),
         );
       }
-
-      setText("");
-      setAttachment(null);
     } catch (error) {
       console.error("Failed to send message:", error);
-      // Error হলে optimistic message সরিয়ে দাও
       setLocalMessages((prev) => prev.filter((m) => m._id !== optimisticId));
+      // ✅ error হলে text ফেরত দাও
+      setText(msgText);
     } finally {
       setSending(false);
     }
@@ -498,7 +649,6 @@ export default function UserChatPage() {
     }
   };
 
-  // localMessages থেকে date-grouped messages তৈরি করো (DB messages নয়)
   const groupedMessages = localMessages.reduce(
     (acc: Record<string, Message[]>, msg) => {
       const label = msg._id.startsWith("temp_")
@@ -510,6 +660,12 @@ export default function UserChatPage() {
     },
     {},
   );
+
+  // ✅ বর্তমান conversation blocked কিনা
+  const isBlocked = BLOCKED_STATUSES.includes(selectedConv?.status ?? "");
+
+  // ✅ total unread count (sidebar badge)
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   /* Theme */
   const theme = dark
@@ -560,91 +716,67 @@ export default function UserChatPage() {
     <div style={theme as React.CSSProperties} className="uc-root">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-
-        .uc-root {
-          font-family: 'DM Sans', sans-serif;
-          height: 100dvh; display: flex;
-          background: var(--bg-primary); color: var(--text-primary);
-          overflow: hidden; transition: background 0.25s, color 0.25s;
-        }
-
-        .uc-sidebar {
-          width: 330px; min-width: 290px;
-          border-right: 1px solid var(--border-strong);
-          display: flex; flex-direction: column;
-          background: var(--bg-secondary); transition: background 0.25s;
-        }
+        .uc-root { font-family: 'DM Sans', sans-serif; height: 100dvh; display: flex; background: var(--bg-primary); color: var(--text-primary); overflow: hidden; transition: background 0.25s, color 0.25s; }
+        .uc-sidebar { width: 330px; min-width: 290px; border-right: 1px solid var(--border-strong); display: flex; flex-direction: column; background: var(--bg-secondary); transition: background 0.25s; }
         .uc-sidebar-header { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
         .uc-sidebar-title { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; flex: 1; }
         .uc-badge { font-size: 11px; background: var(--accent-light); color: var(--accent); padding: 2px 9px; border-radius: 20px; font-weight: 600; }
+        .uc-unread-dot { min-width: 20px; height: 20px; border-radius: 10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; flex-shrink: 0; }
         .uc-icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-strong); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); transition: background 0.15s, color 0.15s; flex-shrink: 0; }
         .uc-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-
         .uc-list { flex: 1; overflow-y: auto; padding: 6px 8px 8px; }
         .uc-list::-webkit-scrollbar { width: 3px; }
         .uc-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
-
         .uc-section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); padding: 8px 12px 4px; }
-
         .uc-conv-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; cursor: pointer; transition: background 0.15s; margin-bottom: 3px; border: 1px solid transparent; }
         .uc-conv-item:hover { background: var(--bg-hover); }
         .uc-conv-item.active { background: var(--bg-active); border-color: rgba(59,130,246,0.25); }
-
         .uc-conv-logo { flex-shrink: 0; }
         .uc-conv-info { flex: 1; min-width: 0; }
+        .uc-conv-top-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
         .uc-conv-company { font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .uc-conv-time { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+        .uc-conv-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 2px; }
+        .uc-conv-last-msg { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        .uc-conv-last-msg.unread { color: var(--text-secondary); font-weight: 500; }
         .uc-conv-job { font-size: 11.5px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-        .uc-conv-status { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-
+        .uc-conv-status { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
         .uc-no-result { text-align: center; padding: 40px 16px; color: var(--text-muted); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-
         .uc-chat { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }
-
         .uc-chat-header { padding: 0 20px; height: 68px; border-bottom: 1px solid var(--border-strong); display: flex; align-items: center; gap: 12px; background: var(--bg-primary); flex-shrink: 0; }
         .uc-chat-hinfo { flex: 1; min-width: 0; }
         .uc-chat-hname { font-size: 15px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
         .uc-chat-hsub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
         .uc-chat-hactions { display: flex; align-items: center; gap: 4px; }
-
         .uc-messages { flex: 1; overflow-y: auto; padding: 20px 24px 12px; display: flex; flex-direction: column; gap: 2px; }
         .uc-messages::-webkit-scrollbar { width: 3px; }
         .uc-messages::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
-
         .uc-date-divider { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; }
         .uc-date-line { flex: 1; height: 1px; background: var(--border); }
         .uc-date-label { font-size: 11px; color: var(--text-muted); font-weight: 500; padding: 0 6px; white-space: nowrap; }
-
         .uc-msg-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 6px; }
         .uc-msg-row.me { flex-direction: row-reverse; }
-
         .uc-msg-content { display: flex; flex-direction: column; max-width: 62%; }
         .uc-msg-row.me .uc-msg-content { align-items: flex-end; }
         .uc-msg-row.hr .uc-msg-content { align-items: flex-start; }
-
         .uc-sender-name { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 3px; padding: 0 4px; }
-
         .uc-bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.6; word-break: break-word; display: inline-block; max-width: 100%; }
         .uc-bubble.me { background: var(--bubble-me); color: var(--bubble-me-text); border-bottom-right-radius: 5px; }
         .uc-bubble.hr { background: var(--bubble-hr); color: var(--bubble-hr-text); border-bottom-left-radius: 5px; }
-
-        /* Optimistic message */
         .uc-msg-row.optimistic .uc-bubble { opacity: 0.7; }
-
         .uc-msg-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; padding: 0 4px; }
         .uc-msg-row.me .uc-msg-meta { flex-direction: row-reverse; }
         .uc-msg-time { font-size: 10.5px; color: var(--text-muted); }
-
         .uc-att-thumb { width: 180px; border-radius: 10px; overflow: hidden; margin-bottom: 6px; cursor: pointer; }
         .uc-att-thumb img { width: 100%; display: block; }
         .uc-att-doc { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.08); padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 12px; cursor: pointer; }
         .uc-bubble.me .uc-att-doc { background: rgba(255,255,255,0.18); }
-
         .uc-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
         .uc-empty-icon { width: 72px; height: 72px; border-radius: 22px; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; }
         .uc-empty-title { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
         .uc-empty-sub { font-size: 13px; text-align: center; max-width: 240px; line-height: 1.55; color: var(--text-muted); }
-
         .uc-input-area { padding: 10px 18px 18px; background: var(--bg-primary); border-top: 1px solid var(--border); flex-shrink: 0; }
+        .uc-blocked-banner { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 12px; color: #f87171; font-size: 13px; font-weight: 500; }
         .uc-att-preview { display: flex; align-items: center; gap: 10px; background: var(--accent-light); border: 1px solid var(--accent); border-radius: 10px; padding: 7px 12px; margin-bottom: 8px; }
         .uc-att-preview-name { font-size: 13px; font-weight: 500; color: var(--accent); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .uc-att-preview-img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; }
@@ -660,10 +792,8 @@ export default function UserChatPage() {
         .uc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .uc-attach-btn { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; transition: color 0.15s, background 0.15s; }
         .uc-attach-btn:hover { color: var(--accent); background: var(--accent-light); }
-
         .uc-skeleton { background: linear-gradient(90deg, var(--skeleton) 25%, var(--bg-hover) 50%, var(--skeleton) 75%); background-size: 200% 100%; animation: uc-shimmer 1.4s infinite; }
         @keyframes uc-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
         @media (max-width: 768px) {
           .uc-sidebar { width: 100%; min-width: unset; position: absolute; inset: 0; z-index: 10; border-right: none; }
           .uc-sidebar.uc-hidden { display: none; }
@@ -678,9 +808,14 @@ export default function UserChatPage() {
       <aside className={`uc-sidebar ${selectedConv ? "uc-hidden" : ""}`}>
         <div className="uc-sidebar-header">
           <span className="uc-sidebar-title">My Applications</span>
-          {applications.length > 0 && (
-            <span className="uc-badge">{applications.length}</span>
-          )}
+          {/* ✅ total unread count দেখাও, না থাকলে conversation count */}
+          {totalUnread > 0 ? (
+            <span className="uc-unread-dot">
+              {totalUnread > 99 ? "99+" : totalUnread}
+            </span>
+          ) : applicationsWithMessages.length > 0 ? (
+            <span className="uc-badge">{applicationsWithMessages.length}</span>
+          ) : null}
           <button
             className="uc-icon-btn"
             onClick={() => setDark((d) => !d)}
@@ -691,25 +826,28 @@ export default function UserChatPage() {
         </div>
 
         <div className="uc-list">
-          {appLoading ? (
+          {isListLoading ? (
             Array.from({ length: 4 }).map((_, i) => <SkeletonItem key={i} />)
-          ) : applications.length === 0 ? (
+          ) : applicationsWithMessages.length === 0 ? (
             <div className="uc-no-result">
               <Briefcase size={28} style={{ opacity: 0.3 }} />
-              <div>No applications yet</div>
+              <div>No active conversations</div>
               <div style={{ fontSize: 12 }}>
-                Apply for jobs to start conversations with HR
+                HR hasn&apos;t messaged you yet
               </div>
             </div>
           ) : (
             <>
               <div className="uc-section-label">
-                Active Conversations · {applications.length}
+                Active Conversations · {applicationsWithMessages.length}
               </div>
-              {applications.map((app: any) => {
+              {applicationsWithMessages.map((app: any) => {
                 const conv = toConversation(app);
                 const isActive =
                   selectedConv?.applicationId === conv.applicationId;
+                const unread = unreadCounts[conv.applicationId] ?? 0;
+                const lastMsg = lastMessages[conv.applicationId];
+
                 return (
                   <div
                     key={conv.applicationId}
@@ -724,12 +862,54 @@ export default function UserChatPage() {
                       />
                     </div>
                     <div className="uc-conv-info">
-                      <div className="uc-conv-company">
-                        {conv.companyName ?? "Company"}
+                      {/* ✅ top row: company name + time */}
+                      <div className="uc-conv-top-row">
+                        <div className="uc-conv-company">
+                          {conv.companyName ?? "Company"}
+                        </div>
+                        {lastMsg && (
+                          <span className="uc-conv-time">
+                            {formatTime(lastMsg.time)}
+                          </span>
+                        )}
                       </div>
+                      {/* ✅ job title */}
                       <div className="uc-conv-job">↳ {conv.jobTitle}</div>
-                      <div className="uc-conv-status">
-                        {app?.status ?? "Applied"}
+                      {/* ✅ bottom row: last message + unread badge */}
+                      <div className="uc-conv-bottom-row">
+                        {lastMsg ? (
+                          <div
+                            className={`uc-conv-last-msg ${unread > 0 ? "unread" : ""}`}
+                          >
+                            {lastMsg.fromMe ? "You: " : ""}
+                            {lastMsg.text}
+                          </div>
+                        ) : (
+                          <div
+                            className="uc-conv-status"
+                            style={{
+                              color:
+                                app?.status === "hired"
+                                  ? "#22c55e"
+                                  : app?.status === "offered"
+                                    ? "#a855f7"
+                                    : "var(--text-muted)",
+                            }}
+                          >
+                            {app?.status === "hired" && "✅ "}
+                            {app?.status === "offered" && "🎉 "}
+                            {app?.status ?? "Applied"}
+                          </div>
+                        )}
+                        {/* ✅ unread count badge */}
+                        {unread > 0 && (
+                          <span
+                            className="uc-unread-dot"
+                            style={{ fontSize: 10, minWidth: 18, height: 18 }}
+                          >
+                            {unread > 99 ? "99+" : unread}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -799,7 +979,6 @@ export default function UserChatPage() {
                   No messages yet. Say hello! 👋
                 </div>
               )}
-
               {Object.entries(groupedMessages).map(([dateLabel, msgs]) => (
                 <div key={dateLabel}>
                   <div className="uc-date-divider">
@@ -870,73 +1049,85 @@ export default function UserChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* ✅ Input area */}
             <div className="uc-input-area">
-              {attachment && (
-                <div className="uc-att-preview">
-                  {attachment.previewUrl ? (
-                    <Image
-                      src={attachment.previewUrl}
-                      alt="preview"
-                      width={36}
-                      height={36}
-                      className="uc-att-preview-img"
-                      style={{
-                        width: 36,
-                        height: 36,
-                        objectFit: "cover",
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : (
-                    getAttachmentIcon(attachment.type)
-                  )}
-                  <span className="uc-att-preview-name">
-                    {attachment.file.name}
+              {isBlocked ? (
+                <div className="uc-blocked-banner">
+                  <span style={{ fontSize: 18 }}>🚫</span>
+                  <span>
+                    This application was rejected. You cannot send messages.
                   </span>
-                  <button
-                    className="uc-att-remove"
-                    onClick={() => setAttachment(null)}
-                  >
-                    <X size={13} />
-                  </button>
                 </div>
-              )}
-              <div className="uc-input-row">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  style={{ display: "none" }}
-                  accept="image/*,.pdf,.doc,.docx"
-                  onChange={handleFileChange}
-                />
-                <button
-                  className="uc-attach-btn"
-                  title="Attach"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Paperclip size={17} />
-                </button>
-                <textarea
-                  ref={textareaRef}
-                  className="uc-textarea"
-                  placeholder="Reply to HR… (Enter to send)"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                />
-                <button
-                  className="uc-send-btn"
-                  onClick={handleSend}
-                  disabled={sending || (!text.trim() && !attachment)}
-                >
-                  {sending ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <Send size={15} />
+              ) : (
+                <>
+                  {attachment && (
+                    <div className="uc-att-preview">
+                      {attachment.previewUrl ? (
+                        <Image
+                          src={attachment.previewUrl}
+                          alt="preview"
+                          width={36}
+                          height={36}
+                          className="uc-att-preview-img"
+                          style={{
+                            width: 36,
+                            height: 36,
+                            objectFit: "cover",
+                            borderRadius: 6,
+                          }}
+                        />
+                      ) : (
+                        getAttachmentIcon(attachment.type)
+                      )}
+                      <span className="uc-att-preview-name">
+                        {attachment.file.name}
+                      </span>
+                      <button
+                        className="uc-att-remove"
+                        onClick={() => setAttachment(null)}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
                   )}
-                </button>
-              </div>
+                  <div className="uc-input-row">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      style={{ display: "none" }}
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={handleFileChange}
+                    />
+                    <button
+                      className="uc-attach-btn"
+                      title="Attach"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Paperclip size={17} />
+                    </button>
+                    <textarea
+                      ref={textareaRef}
+                      className="uc-textarea"
+                      placeholder="Reply to HR… (Enter to send)"
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      rows={1}
+                    />
+                    <button
+                      className="uc-send-btn"
+                      onClick={handleSend}
+                      disabled={sending || (!text.trim() && !attachment)}
+                    >
+                      {sending ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <Send size={15} />
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : (

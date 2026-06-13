@@ -38,12 +38,20 @@ export default function UsersPage() {
         <DataTableSkeleton />
       </div>
     );
+
   if (isError) return <div>Failed to load users</div>;
 
   const users = data?.data || [];
 
-  // 👉 Edit click
+  // =========================
+  // 👉 EDIT (BLOCK ADMIN)
+  // =========================
   const handleEdit = (user: any) => {
+    if (user.role === "admin") {
+      toast.error("Admin cannot be edited 🚫");
+      return;
+    }
+
     setSelectedUser(user);
     setFormData({
       name: user.name,
@@ -53,16 +61,30 @@ export default function UsersPage() {
     setEditOpen(true);
   };
 
-  // 👉 Delete click
+  // =========================
+  // 👉 DELETE (BLOCK ADMIN)
+  // =========================
   const handleDelete = (user: any) => {
+    if (user.role === "admin") {
+      toast.error("Admin cannot be deleted 🚫");
+      return;
+    }
+
     setSelectedUser(user);
     setDeleteOpen(true);
   };
 
-  // 👉 Update submit
+  // =========================
+  // 👉 UPDATE
+  // =========================
   const handleUpdate = async () => {
     if (!selectedUser?._id) {
       toast.error("No user selected");
+      return;
+    }
+
+    if (selectedUser.role === "admin") {
+      toast.error("Admin cannot be modified 🚫");
       return;
     }
 
@@ -75,18 +97,31 @@ export default function UsersPage() {
       toast.success("User updated successfully ✅");
       setEditOpen(false);
     } catch (error) {
-      toast.error("Failed to update user ");
+      toast.error("Failed to update user ❌");
     }
   };
-  // 👉 Confirm delete
+
+  // =========================
+  // 👉 DELETE CONFIRM
+  // =========================
   const handleConfirmDelete = async () => {
+    if (!selectedUser?._id) {
+      toast.error("No user selected");
+      return;
+    }
+
+    if (selectedUser.role === "admin") {
+      toast.error("Admin cannot be deleted 🚫");
+      return;
+    }
+
     try {
       await deleteUser(selectedUser._id).unwrap();
 
       toast.success("User deleted successfully 🗑️");
       setDeleteOpen(false);
     } catch (error) {
-      toast.error("Failed to delete user ");
+      toast.error("Failed to delete user ❌");
     }
   };
 

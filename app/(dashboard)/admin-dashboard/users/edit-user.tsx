@@ -38,7 +38,7 @@ export function EditUserDialog({
           />
 
           <select
-            className="w-full border rounded-md p-2"
+            className="w-full border text-black dark:text-white dark:bg-black rounded-md p-2"
             value={formData.role}
             onChange={(e) =>
               setFormData({

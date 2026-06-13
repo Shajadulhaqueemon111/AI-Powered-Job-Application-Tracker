@@ -41,7 +41,19 @@ export const chatMessageApi = createApi({
       }),
       // providesTags: ["ChatMessage"],
     }),
-
+    getActiveApplicationIds: builder.query<string[], string>({
+      query: (userId) => ({
+        url: `/messages/active-applications/${userId}`,
+        method: "GET",
+      }),
+      transformResponse: (res: any) => res?.data ?? [],
+    }),
+    getChatSummary: builder.query({
+      query: (userId: string) => ({
+        url: `/chat-message/summary/${userId}`,
+        method: "GET",
+      }),
+    }),
     updateChatMessage: builder.mutation({
       query: (id) => ({
         url: `messages/read/${id}`,
@@ -71,4 +83,6 @@ export const {
   useUpdateChatMessageMutation,
   useDeleteChatMessageMutation,
   useUnreadChatMessageQuery,
+  useGetActiveApplicationIdsQuery,
+  useGetChatSummaryQuery,
 } = chatMessageApi;

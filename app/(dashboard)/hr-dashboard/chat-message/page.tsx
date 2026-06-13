@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import HRChatPage from "./message";
+import HRChatPage from "./[applicationId]/page";
+// import HRChatPage from "./message";
 
 // 🔥 SEO / Metadata
 export const metadata: Metadata = {

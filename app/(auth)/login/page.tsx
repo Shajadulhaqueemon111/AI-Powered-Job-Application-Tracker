@@ -50,6 +50,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<FormData>();
 
@@ -235,6 +236,47 @@ export default function LoginPage() {
           <Button disabled={loading || authStep !== "login"} className="w-full">
             {loading ? "Processing..." : "Login"}
           </Button>
+          <div className="mt-6 space-y-2">
+            <p className="text-white/60 text-sm text-center">
+              Quick Login (Demo Accounts)
+            </p>
+
+            {/* USER */}
+            <Button
+              type="button"
+              className="w-full bg-blue-500 hover:bg-blue-600"
+              onClick={() => {
+                setValue("email", "mdshajdulhaqueemon@gmail.com");
+                setValue("password", "123456");
+              }}
+            >
+              Login as User
+            </Button>
+
+            {/* HR */}
+            <Button
+              type="button"
+              className="w-full bg-green-500 hover:bg-green-600"
+              onClick={() => {
+                setValue("email", "emd534492@gmail.com");
+                setValue("password", "HR123456");
+              }}
+            >
+              Login as HR
+            </Button>
+
+            {/* ADMIN */}
+            <Button
+              type="button"
+              className="w-full bg-red-500 hover:bg-red-600"
+              onClick={() => {
+                setValue("email", "emonmdsajedulhaque@gmail.com");
+                setValue("password", "somepassword");
+              }}
+            >
+              Login as Admin
+            </Button>
+          </div>
         </form>
 
         <p className="text-center text-white/60 mt-4 text-sm">

@@ -28,6 +28,7 @@ import {
 } from "@/app/redux/features/chat-message/message";
 import Image from "next/image";
 import { socket } from "@/app/lib/soket";
+import { useSearchParams } from "next/navigation";
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -246,10 +247,16 @@ export default function HRChatPage() {
   const { data: meData } = useGetMeQuery();
   const hrId = meData?.data?.user?._id;
   const hrName: string = meData?.data?.user?.name ?? "HR";
-
+  const searchParams = useSearchParams();
+  const applicationIdFromUrl = searchParams.get("applicationId");
   /* ── Applications list ── */
   const { data: appData, isLoading: appLoading } = useGetApplicationsQuery(
-    { hrId, search: debouncedSearch || undefined, page },
+    {
+      hrId,
+      search: debouncedSearch || undefined,
+      page,
+      applicationId: applicationIdFromUrl || undefined,
+    },
     { skip: !hrId },
   );
 
@@ -264,7 +271,8 @@ export default function HRChatPage() {
   /* ── Messages for selected conversation (initial DB load) ── */
   const { data: msgData, refetch } = useGetChatMessagesQuery(
     selectedUser?.applicationId,
-    { skip: !selectedUser },
+
+    { pollingInterval: 5000, skip: !selectedUser },
   );
 
   const [sendMessage] = useCreateChatMessageMutation();

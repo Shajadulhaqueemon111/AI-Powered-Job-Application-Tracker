@@ -292,7 +292,7 @@ export default function HRChatPage() {
   /* ── Messages for selected conversation ── */
   const { data: msgData, refetch } = useGetChatMessagesQuery(
     selectedUser?.applicationId,
-    { skip: !selectedUser },
+    { pollingInterval: 5000, skip: !selectedUser },
   );
 
   const [sendMessage] = useCreateChatMessageMutation();
