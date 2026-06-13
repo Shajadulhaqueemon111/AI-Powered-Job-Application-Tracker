@@ -69,6 +69,7 @@ import {
   Edit,
   Loader2,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { useGetMeQuery } from "@/app/redux/features/auth/authApi";
 import {
@@ -78,6 +79,7 @@ import {
 import toast from "react-hot-toast";
 import { HrApplicantsSkeleton } from "./skeliton";
 import { useRouter } from "next/navigation";
+import { useAnalyzeApplicationMutation } from "@/app/redux/features/ats-api/ats-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +92,7 @@ type ApplicationStatus =
   | "hired"
   | "rejected";
 
-interface Applicant {
+export interface Applicant {
   _id: string;
   jobId: string;
   userId: string;
@@ -795,14 +797,274 @@ function TableSkeleton() {
     </div>
   );
 }
+// all-applicants.tsx এ এই অংশগুলো add/update করো
 
+// ─── ATS Types ────────────────────────────────────────────────────────────────
+
+interface AtsResult {
+  score: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  summary: string;
+  recommendation: string;
+}
+
+// ─── ATS Analyze Modal ────────────────────────────────────────────────────────
+
+function AtsAnalyzeModal({
+  applicant,
+  open,
+  onClose,
+}: {
+  applicant: Applicant | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [jobDescription, setJobDescription] = useState("");
+  const [result, setResult] = useState<AtsResult | null>(null);
+  const [analyzeApplication, { isLoading }] = useAnalyzeApplicationMutation();
+
+  // modal বন্ধ হলে reset
+  const handleClose = () => {
+    setJobDescription("");
+    setResult(null);
+    onClose();
+  };
+
+  const handleAnalyze = async () => {
+    if (!applicant || !jobDescription.trim()) return;
+    try {
+      const res = await analyzeApplication({
+        applicationId: applicant._id,
+        jobDescription,
+      }).unwrap();
+      setResult(res);
+    } catch {
+      toast.error("Analysis failed. Please try again.");
+    }
+  };
+
+  if (!applicant) return null;
+
+  const initials = getInitials(applicant.fullName);
+  const color = avatarColor(applicant.fullName);
+
+  // score এর রঙ
+  const scoreColor = !result
+    ? ""
+    : result.score >= 75
+      ? "text-emerald-600"
+      : result.score >= 50
+        ? "text-amber-500"
+        : "text-red-500";
+
+  const scoreBg = !result
+    ? ""
+    : result.score >= 75
+      ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800"
+      : result.score >= 50
+        ? "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800"
+        : "bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-800";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="sm:max-w-[580px] p-0 gap-0 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex items-center justify-center w-10 h-10 rounded-xl text-sm font-bold shrink-0 ${color}`}
+            >
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-bold text-foreground leading-tight">
+                AI Resume Analysis
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate">
+                {applicant.fullName} · {applicant.email}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* Body */}
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="px-6 py-5 space-y-5">
+            {/* Job Description Input */}
+            {!result && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Job Description
+                </label>
+                <textarea
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Paste the job description here…"
+                  rows={7}
+                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-foreground placeholder:text-muted-foreground p-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
+                />
+              </div>
+            )}
+
+            {/* Result */}
+            {result && (
+              <div className="space-y-5">
+                {/* Score */}
+                <div className={`rounded-xl border p-4 ${scoreBg}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      ATS Match Score
+                    </p>
+                    <span className={`text-3xl font-black ${scoreColor}`}>
+                      {result.score}
+                      <span className="text-base font-semibold">/100</span>
+                    </span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-2.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        result.score >= 75
+                          ? "bg-emerald-500"
+                          : result.score >= 50
+                            ? "bg-amber-400"
+                            : "bg-red-500"
+                      }`}
+                      style={{ width: `${result.score}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Matched Skills */}
+                {result.matchedSkills.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      Matched Skills ({result.matchedSkills.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.matchedSkills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 font-medium"
+                        >
+                          ✓ {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing Skills */}
+                {result.missingSkills.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 text-red-500" />
+                      Missing Skills ({result.missingSkills.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.missingSkills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 font-medium"
+                        >
+                          ✗ {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Summary */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                    Summary
+                  </p>
+                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {result.summary}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Recommendation */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                    Recommendation
+                  </p>
+                  <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900">
+                    <p className="text-sm text-indigo-700 dark:text-indigo-300 leading-relaxed font-medium">
+                      {result.recommendation}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Re-analyze button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full rounded-xl border-zinc-200 dark:border-zinc-700 gap-2 text-xs"
+                  onClick={() => setResult(null)}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Re-analyze with different JD
+                </Button>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Footer */}
+        <DialogFooter className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 shrink-0 flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={isLoading}
+            className="flex-1 rounded-xl border-zinc-200 dark:border-zinc-700"
+          >
+            Close
+          </Button>
+          {!result && (
+            <Button
+              onClick={handleAnalyze}
+              disabled={isLoading || !jobDescription.trim()}
+              className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Analyze Resume
+                </>
+              )}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HrApplicants() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [atsApplicant, setAtsApplicant] = useState<Applicant | null>(null);
+  const [atsModalOpen, setAtsModalOpen] = useState(false);
 
+  // 3️⃣ handler
+  const handleAnalyze = (applicant: Applicant) => {
+    setAtsApplicant(applicant);
+    setAtsModalOpen(true);
+  };
   // View drawer state
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(
     null,
@@ -1182,7 +1444,20 @@ export default function HrApplicants() {
                           View
                         </span>
                       </Button>
-
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-xs text-muted-foreground hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950 rounded-lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAnalyze(applicant);
+                        }}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline cursor-pointer">
+                          Analyze
+                        </span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1296,7 +1571,14 @@ export default function HrApplicants() {
           setSelectedApplicant(null);
         }}
       />
-
+      <AtsAnalyzeModal
+        applicant={atsApplicant}
+        open={atsModalOpen}
+        onClose={() => {
+          setAtsModalOpen(false);
+          setTimeout(() => setAtsApplicant(null), 300);
+        }}
+      />
       {/* ── Status Update Dialog ── */}
       <StatusUpdateDialog
         applicant={editApplicant}

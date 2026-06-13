@@ -6,6 +6,7 @@ import { applicationApi } from "./features/application/application-api";
 import { userApi } from "./features/users/users-api";
 import { notificationApi } from "./features/notification/notification";
 import { chatMessageApi } from "./features/chat-message/message";
+import { atsApi } from "./features/ats-api/ats-api";
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     [applicationApi.reducerPath]: applicationApi.reducer,
     [notificationApi.reducerPath]: notificationApi.reducer,
     [chatMessageApi.reducerPath]: chatMessageApi.reducer,
+    [atsApi.reducerPath]: atsApi.reducer,
   },
 
   middleware: (getDefaultMiddleware) =>
@@ -26,6 +28,7 @@ export const store = configureStore({
       applicationApi.middleware,
       notificationApi.middleware,
       chatMessageApi.middleware,
+      atsApi.middleware,
     ),
 });
 
