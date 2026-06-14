@@ -1,8 +1,7 @@
-/* eslint-disable react/jsx-no-undef */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Table,
   TableBody,
@@ -123,7 +122,6 @@ const STATUS_FILTER_OPTIONS = [
   { value: "rejected", label: "Rejected" },
 ];
 
-// All statuses available for the HR to set
 const STATUS_UPDATE_OPTIONS: {
   value: ApplicationStatus;
   label: string;
@@ -344,7 +342,6 @@ function StatusUpdateDialog({
   );
   const [updateApplication, { isLoading }] = useUpdateApplicationMutation();
 
-  // Reset selection when a new applicant is loaded
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen && applicant) {
       setSelectedStatus(applicant.status);
@@ -432,7 +429,6 @@ function StatusUpdateDialog({
                         : "border-zinc-100 dark:border-zinc-800 hover:border-zinc-200 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                     }`}
                 >
-                  {/* Status badge */}
                   <Badge
                     variant="outline"
                     className={`flex items-center gap-1 text-xs font-medium shrink-0 ${config.className}`}
@@ -441,12 +437,10 @@ function StatusUpdateDialog({
                     {config.label}
                   </Badge>
 
-                  {/* Description */}
                   <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate">
                     {option.description}
                   </span>
 
-                  {/* Indicators */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {isCurrent && (
                       <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
@@ -523,6 +517,7 @@ export function ApplicantDrawer({
   const status = getStatusConfig(applicant.status);
   const initials = getInitials(applicant.fullName);
   const color = avatarColor(applicant.fullName);
+
   const handleDownloadResume = async () => {
     try {
       const response = await fetch(applicant.resumeUrl!, {
@@ -532,21 +527,19 @@ export function ApplicantDrawer({
         },
       });
       const blob = await response.blob();
-
       const url = window.URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = `${applicant.fullName}-resume.pdf`;
       document.body.appendChild(a);
       a.click();
-
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download failed", error);
     }
   };
+
   return (
     <Sheet
       open={open}
@@ -713,6 +706,7 @@ export function ApplicantDrawer({
                 </div>
               </div>
             )}
+
             <Button
               size="sm"
               variant="outline"
@@ -722,6 +716,7 @@ export function ApplicantDrawer({
               <Download className="w-3.5 h-3.5" />
               Resume Download
             </Button>
+
             {/* Meta */}
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -797,7 +792,6 @@ function TableSkeleton() {
     </div>
   );
 }
-// all-applicants.tsx এ এই অংশগুলো add/update করো
 
 // ─── ATS Types ────────────────────────────────────────────────────────────────
 
@@ -820,36 +814,59 @@ function AtsAnalyzeModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const [jobDescription, setJobDescription] = useState("");
   const [result, setResult] = useState<AtsResult | null>(null);
   const [analyzeApplication, { isLoading }] = useAnalyzeApplicationMutation();
+  const hasAnalyzed = useRef(false);
 
-  // modal বন্ধ হলে reset
   const handleClose = () => {
-    setJobDescription("");
     setResult(null);
+    hasAnalyzed.current = false;
     onClose();
   };
 
-  const handleAnalyze = async () => {
-    if (!applicant || !jobDescription.trim()) return;
+  const handleAnalyze = useCallback(async () => {
+    if (!applicant) return;
     try {
-      const res = await analyzeApplication({
+      const res = (await analyzeApplication({
         applicationId: applicant._id,
-        jobDescription,
-      }).unwrap();
-      setResult(res);
-    } catch {
+      }).unwrap()) as any;
+
+      // যদি ব্যাকএন্ড থেকে ডাবল র‍্যাপিং হয়ে `{ data: { score: ... } }` আকারে আসে
+      const responseData = res?.data ? res.data : res;
+
+      console.log("🍏 Frontend Received ATS Data:", responseData);
+
+      const normalized: AtsResult = {
+        score: responseData?.score ?? 0,
+        matchedSkills: responseData?.matchedSkills ?? [],
+        missingSkills: responseData?.missingSkills ?? [],
+        summary: responseData?.summary ?? "No summary available.",
+        recommendation: responseData?.recommendation ?? "No recommendation.",
+      };
+
+      setResult(normalized);
+    } catch (error) {
+      console.error("Analysis Error:", error);
       toast.error("Analysis failed. Please try again.");
     }
-  };
+  }, [applicant, analyzeApplication]);
+
+  // Modal open হলেই একবার auto analyze — ref দিয়ে double-call ঠেকানো হয়েছে
+  useEffect(() => {
+    if (open && applicant && !hasAnalyzed.current) {
+      hasAnalyzed.current = true;
+      handleAnalyze();
+    }
+    if (!open) {
+      hasAnalyzed.current = false;
+    }
+  }, [open, applicant, handleAnalyze]);
 
   if (!applicant) return null;
 
   const initials = getInitials(applicant.fullName);
   const color = avatarColor(applicant.fullName);
 
-  // score এর রঙ
   const scoreColor = !result
     ? ""
     : result.score >= 75
@@ -882,7 +899,7 @@ function AtsAnalyzeModal({
                 AI Resume Analysis
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate">
-                {applicant.fullName} · {applicant.email}
+                {applicant.fullName} · Auto-matched against job requirements
               </DialogDescription>
             </div>
           </div>
@@ -891,24 +908,18 @@ function AtsAnalyzeModal({
         {/* Body */}
         <ScrollArea className="flex-1 overflow-y-auto">
           <div className="px-6 py-5 space-y-5">
-            {/* Job Description Input */}
-            {!result && (
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Job Description
-                </label>
-                <textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste the job description here…"
-                  rows={7}
-                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-foreground placeholder:text-muted-foreground p-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
-                />
+            {/* Loading state */}
+            {isLoading && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                <p className="text-sm text-muted-foreground">
+                  Analyzing resume against job requirements…
+                </p>
               </div>
             )}
 
             {/* Result */}
-            {result && (
+            {result && !isLoading && (
               <div className="space-y-5">
                 {/* Score */}
                 <div className={`rounded-xl border p-4 ${scoreBg}`}>
@@ -921,7 +932,6 @@ function AtsAnalyzeModal({
                       <span className="text-base font-semibold">/100</span>
                     </span>
                   </div>
-                  {/* Progress bar */}
                   <div className="w-full h-2.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-700 ${
@@ -1002,15 +1012,18 @@ function AtsAnalyzeModal({
                   </div>
                 </div>
 
-                {/* Re-analyze button */}
+                {/* Re-analyze */}
                 <Button
                   variant="outline"
                   size="sm"
                   className="w-full rounded-xl border-zinc-200 dark:border-zinc-700 gap-2 text-xs"
-                  onClick={() => setResult(null)}
+                  onClick={() => {
+                    setResult(null);
+                    handleAnalyze();
+                  }}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Re-analyze with different JD
+                  Re-analyze
                 </Button>
               </div>
             )}
@@ -1018,39 +1031,20 @@ function AtsAnalyzeModal({
         </ScrollArea>
 
         {/* Footer */}
-        <DialogFooter className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 shrink-0 flex gap-2">
+        <DialogFooter className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 shrink-0">
           <Button
             variant="outline"
             onClick={handleClose}
-            disabled={isLoading}
-            className="flex-1 rounded-xl border-zinc-200 dark:border-zinc-700"
+            className="w-full rounded-xl border-zinc-200 dark:border-zinc-700"
           >
             Close
           </Button>
-          {!result && (
-            <Button
-              onClick={handleAnalyze}
-              disabled={isLoading || !jobDescription.trim()}
-              className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Analyzing…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Analyze Resume
-                </>
-              )}
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HrApplicants() {
@@ -1060,27 +1054,26 @@ export default function HrApplicants() {
   const [atsApplicant, setAtsApplicant] = useState<Applicant | null>(null);
   const [atsModalOpen, setAtsModalOpen] = useState(false);
 
-  // 3️⃣ handler
   const handleAnalyze = (applicant: Applicant) => {
     setAtsApplicant(applicant);
     setAtsModalOpen(true);
   };
-  // View drawer state
+
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(
     null,
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Status update dialog state
   const [editApplicant, setEditApplicant] = useState<Applicant | null>(null);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
 
   const debouncedSearch = search;
-  const router = useRouter(); // import { useRouter } from "next/navigation"
+  const router = useRouter();
 
   const handleMessage = (applicant: Applicant) => {
     router.push(`/hr-dashboard/chat-message?applicationId=${applicant._id}`);
   };
+
   const { data: me } = useGetMeQuery();
   const hrId = me?.data?.user?._id;
 
@@ -1127,17 +1120,17 @@ export default function HrApplicants() {
     setDrawerOpen(true);
   };
 
-  // ✅ Opens the status update dialog
   const handleEdit = (applicant: Applicant) => {
     setEditApplicant(applicant);
-
     setStatusDialogOpen(true);
   };
 
   const hasFilters = search || statusFilter !== "all";
+
   if (isLoading || isFetching) {
     return <HrApplicantsSkeleton />;
   }
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 space-y-6">
       {/* ── Header ── */}
@@ -1413,7 +1406,6 @@ export default function HrApplicants() {
 
                     {/* Action */}
                     <TableCell className="text-right pr-6 py-4">
-                      {/* ✅ Edit opens Status Update Dialog */}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1429,7 +1421,6 @@ export default function HrApplicants() {
                         </span>
                       </Button>
 
-                      {/* View opens the detail drawer */}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1444,6 +1435,7 @@ export default function HrApplicants() {
                           View
                         </span>
                       </Button>
+
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1458,6 +1450,7 @@ export default function HrApplicants() {
                           Analyze
                         </span>
                       </Button>
+
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1571,6 +1564,7 @@ export default function HrApplicants() {
           setSelectedApplicant(null);
         }}
       />
+
       <AtsAnalyzeModal
         applicant={atsApplicant}
         open={atsModalOpen}
@@ -1579,6 +1573,7 @@ export default function HrApplicants() {
           setTimeout(() => setAtsApplicant(null), 300);
         }}
       />
+
       {/* ── Status Update Dialog ── */}
       <StatusUpdateDialog
         applicant={editApplicant}
