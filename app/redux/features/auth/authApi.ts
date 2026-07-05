@@ -137,7 +137,54 @@ export const authApi = createApi({
         method: "POST",
       }),
     }),
+    updateUser: builder.mutation<void, void>({
+      query: () => ({
+        url: "user",
+        method: "POST",
+      }),
+    }),
+    changePassword: builder.mutation<
+      { message: string },
+      { currentPassword: string; newPassword: string }
+    >({
+      query: (body) => ({
+        url: "auth/change-password", // <-- নিজের actual route বসাও
+        method: "PATCH",
+        body,
+      }),
+    }),
 
+    uploadProfile: builder.mutation<
+      any,
+      {
+        id: string;
+        formData: FormData;
+      }
+    >({
+      query: ({ id, formData }) => ({
+        url: `/user/${id}`,
+        method: "PATCH",
+        body: formData,
+      }),
+    }),
+    uploadResume: builder.mutation<any, { id: string; formData: FormData }>({
+      query: ({ id, formData }) => ({
+        url: `/user/${id}`,
+        method: "PATCH",
+        body: formData,
+      }),
+    }),
+
+    updateNotificationSettings: builder.mutation<
+      { message: string },
+      { emailAlerts: boolean; jobAlerts: boolean; interviewReminders: boolean }
+    >({
+      query: (body) => ({
+        url: "users/notifications",
+        method: "PATCH",
+        body,
+      }),
+    }),
     /* ================= 2FA TOGGLE ================= */
     toggleTwoFactor: builder.mutation<
       TwoFactorToggleResponse,
@@ -182,4 +229,9 @@ export const {
   useGetAuditLogsQuery,
   useToggleTwoFactorMutation,
   useGetMeQuery,
+  useChangePasswordMutation,
+  useUploadProfileMutation,
+  useUploadResumeMutation,
+  useUpdateNotificationSettingsMutation,
+  useUpdateUserMutation,
 } = authApi;
