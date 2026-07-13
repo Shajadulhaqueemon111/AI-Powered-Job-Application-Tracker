@@ -7,8 +7,6 @@ import {
   CalendarIcon,
   BellIcon,
   Settings2Icon,
-  BarChart3Icon,
-  MessageCircleIcon,
 } from "lucide-react";
 
 export const hrSidebar = {
@@ -43,11 +41,11 @@ export const hrSidebar = {
       url: "/hr-dashboard/interviews",
       icon: <CalendarIcon />,
     },
-    {
-      title: "Analytics",
-      url: "/hr-dashboard/analytics",
-      icon: <BarChart3Icon />,
-    },
+    // {
+    //   title: "Analytics",
+    //   url: "/hr-dashboard/analytics",
+    //   icon: <BarChart3Icon />,
+    // },
     // {
     //   title: "Messages",
     //   url: "/hr-dashboard/chat-message",
